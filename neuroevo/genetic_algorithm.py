@@ -74,9 +74,11 @@ class GeneticAlgorithm:
     
     def _tournament_selection(self):
         """Select an individual using tournament selection."""
+        # Ensure tournament size doesn't exceed population size
+        actual_tournament_size = min(self.tournament_size, self.population_size)
         tournament_indices = np.random.choice(
             self.population_size, 
-            size=self.tournament_size, 
+            size=actual_tournament_size, 
             replace=False
         )
         tournament_fitness = self.fitness_scores[tournament_indices]

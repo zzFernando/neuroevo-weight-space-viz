@@ -120,8 +120,9 @@ def plot_umap_snapshots(population_history, fitness_history,
         population = population_history[idx]
         fitness = fitness_history[idx]
         
-        # Apply UMAP
-        umap_model = UMAP(n_components=2, random_state=42, n_neighbors=15, min_dist=0.1)
+        # Apply UMAP with safe n_neighbors
+        n_neighbors = min(15, len(population) - 1)
+        umap_model = UMAP(n_components=2, random_state=42, n_neighbors=n_neighbors, min_dist=0.1)
         pop_2d = umap_model.fit_transform(population)
         
         # Plot with fitness as color

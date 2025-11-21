@@ -62,7 +62,13 @@ class FixedMLP:
         
         Returns:
             1D numpy array of all weights and biases
+            
+        Raises:
+            AttributeError: If set_weights has not been called first
         """
+        if not hasattr(self, 'weights') or not hasattr(self, 'biases'):
+            raise AttributeError("Weights not initialized. Call set_weights() first.")
+        
         flat = []
         for w, b in zip(self.weights, self.biases):
             flat.append(w.flatten())
@@ -78,7 +84,13 @@ class FixedMLP:
             
         Returns:
             Output activations, shape (n_samples, output_size) or (output_size,)
+            
+        Raises:
+            AttributeError: If set_weights has not been called first
         """
+        if not hasattr(self, 'weights') or not hasattr(self, 'biases'):
+            raise AttributeError("Weights not initialized. Call set_weights() first.")
+        
         # Handle single sample
         single_sample = False
         if X.ndim == 1:

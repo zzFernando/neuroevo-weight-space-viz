@@ -15,6 +15,7 @@ from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+from neuroevo.mlp import FixedMLP
 from neuroevo.genetic_algorithm import GeneticAlgorithm
 from neuroevo.visualizations import (
     plot_mds_trajectory,
@@ -121,7 +122,6 @@ def main():
     
     # Evaluate best individual on test set
     best_individual, best_fitness_train = ga.get_best_individual()
-    from neuroevo.mlp import FixedMLP
     mlp = FixedMLP(layer_sizes)
     mlp.set_weights(best_individual)
     predictions = mlp.predict(X_test)
