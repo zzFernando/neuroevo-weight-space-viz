@@ -121,12 +121,29 @@ ga = GeneticAlgorithm(
 n_generations = 100
 ```
 
+See `example_custom.py` for an example using the moons dataset with different parameters.
+
 ## Requirements
 
 - numpy >= 1.24.0
 - scikit-learn >= 1.3.0
 - matplotlib >= 3.7.0
 - umap-learn >= 0.5.5
+
+## Testing
+
+Run the unit tests to verify the implementation:
+
+```bash
+python -m unittest discover tests -v
+```
+
+All tests should pass, covering:
+- MLP forward/backward pass
+- Weight initialization and serialization
+- Genetic algorithm operations
+- Evolution and fitness evaluation
+- Edge case handling
 
 ## License
 
