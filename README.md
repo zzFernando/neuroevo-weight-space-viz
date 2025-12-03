@@ -1,73 +1,33 @@
-# Neuroevolution Weight Space Visualization
+# Neuroevolution Weight-Space Visualizer
 
-This project focuses on *how* neural weights move and organize during neuroevolution. We evolve a fixed-topology MLP on a deliberately complex dataset and export visualizations that highlight the dynamics of each generation.
+Streamlit app implementing the three visualizations from **Cantareira, Etemad & Paulovich (2020)** — Aligned UMAP, Vector Field, and Trajectory Bundling — to explore how populations move through weight space during neuroevolution.
 
-## What's Included
+## Features
+- **Aligned UMAP:** per-generation UMAP with temporal post-alignment (`proj_k - λ * (proj_k - proj_ref)`) and dual panels (generation colors, fitness colors).
+- **Vector Field:** velocities `α_i(t+1) - α_i(t)` aggregated on a 2D grid and rendered with `streamplot` to show representation flow.
+- **Trajectory Bundling:** re-sampled trajectories, iterative attraction (`β`) between nearby control points, and bundled curves colored by mean fitness.
 
-- **Complex dataset generator** – mixes spirals, moons, circles and noisy blobs into a high-dimensional classification challenge (`neuroevo/datasets.py`). The problem is hard enough to justify the visualization effort.
-- **Minimal GA** – a lean yet fully traceable genetic algorithm that keeps every population, best genome and diversity score (`neuroevo/genetic_algorithm.py`).
-- **Visualization suite** – four plots purpose-built for weight-space analysis (`neuroevo/visualizations.py`):
-  1. PCA trajectory of the best genome across generations.
-  2. Heatmap of the most dynamic weights, generation vs. weight index.
-  3. PCA projection of whole populations at different checkpoints.
-  4. Dual-axis curve showing best fitness vs. mean pairwise diversity.
+## Project Layout
+- `app.py` — Streamlit UI with sidebar controls for mode, λ, grid resolution, β, iterations, and neighbor radius.
+- `utils.py` — neuroevolution loop for a make_moons MLP, data containers, aligned UMAP helper.
+- `visualizations/` — plotting modules: `aligned_umap.py`, `vector_field.py`, `trajectory_bundling.py`, `__init__.py`.
+- `requirements.txt` — Python deps (`streamlit`, `umap-learn`, `numpy`, `matplotlib`, `scikit-learn`, `plotly`, `numba`, `llvmlite`).
+- `Cantareira_Etemad_Paulovich___2020___Exploring_neural_network_hidden_layer_activity_using_vector_fields.pdf` — reference paper.
 
-These artifacts aim to contribute new ideas to the neuroevolution visualization literature, especially for tracking weight evolution rather than just fitness curves.
-
-## Installation
-
+## Setup
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # or .venv\\Scripts\\activate on Windows
 pip install -r requirements.txt
 ```
 
-## Usage
-
+## Run
 ```bash
-python main.py \
-  --generations 180 \
-  --population-size 70 \
-  --samples 6000 \
-  --seed 0
+streamlit run app.py
 ```
+Use the sidebar to choose the visualization mode and tweak λ, grid resolution, bundling strength (β), iterations, and neighbor radius fraction.
 
-Outputs are saved under `results/`:
-
-| File | Description |
-| --- | --- |
-| `weights_heatmap.png` | Heatmap (gerações × variáveis) do melhor indivíduo |
-| `weights_mds.png` | Trajetória 2-D via MDS dos vetores de pesos |
-| `population_weight_stats.png` | Linhas com média ± desvio da população vs. melhor indivíduo |
-
-## Project Structure
-
-```
-neuroevo-weight-space-viz/
-├── main.py
-├── neuroevo/
-│   ├── __init__.py
-│   ├── datasets.py         # complex dataset generator
-│   ├── genetic_algorithm.py
-│   ├── mlp.py
-│   └── visualizations.py
-├── results/                # generated artifacts
-├── tests/
-└── README.md
-```
-
-## Extending
-
-- Modify `generate_complex_dataset` to experiment with other manifolds.
-- Adjust GA hyperparameters via CLI flags (`--mutation-rate`, `--mutation-std`, `--elite-size`, etc.).
-- Add new visualization ideas in `neuroevo/visualizations.py`; all histories are already stored.
-
-## Testing
-
-```bash
-python -m unittest discover tests -v
-```
-
-The suite checks dataset properties, GA bookkeeping and visualization smoke tests.
-
----
-
-Created for research on novel visualizations for neuroevolution weight dynamics.
+## Notes
+- The app caches evolution runs and alignment for quick iteration.
+- Neighbor radius in the UI is interpreted as a fraction of the embedding diameter before being passed to bundling.
+- All code is ASCII-only and organized for quick experimentation with Cantareira-style visuals.
