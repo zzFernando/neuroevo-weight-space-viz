@@ -1,169 +1,86 @@
 #!/usr/bin/env python3
-"""
-Main script for running genetic algorithm on neuroevolution and generating visualizations.
+"""Entry point for running the streamlined neuroevolution demo."""
+from __future__ import annotations
 
-This script demonstrates:
-1. A simple genetic algorithm that evolves only the weights of a fixed-topology MLP
-2. Evaluation on a toy classification task (Iris dataset)
-3. Logging of best individual and population each generation
-4. MDS 2D trajectory visualization of best individual in weight space
-5. UMAP 2D projections of population at start/mid/end, colored by fitness
-"""
 import os
+import argparse
 import numpy as np
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
+from neuroevo.datasets import generate_complex_dataset
 from neuroevo.mlp import FixedMLP
 from neuroevo.genetic_algorithm import GeneticAlgorithm
 from neuroevo.visualizations import (
-    plot_mds_trajectory,
-    plot_umap_snapshots,
-    plot_fitness_evolution
+    plot_weight_heatmap,
+    plot_best_mds,
+    plot_population_weight_stats,
 )
 
-
-def create_toy_dataset(n_samples=500, n_features=4, n_classes=3, random_state=42):
-    """
-    Create a toy classification dataset.
-    
-    Args:
-        n_samples: Number of samples
-        n_features: Number of input features
-        n_classes: Number of classes
-        random_state: Random seed
-        
-    Returns:
-        X_train, X_test, y_train, y_test
-    """
-    X, y = make_classification(
-        n_samples=n_samples,
-        n_features=n_features,
-        n_informative=n_features,
-        n_redundant=0,
-        n_classes=n_classes,
-        n_clusters_per_class=1,
-        class_sep=1.0,
-        random_state=random_state
-    )
-    
-    # Split into train/test
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=random_state
-    )
-    
-    # Standardize features
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-    
-    return X_train, X_test, y_train, y_test
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 
-def main():
-    """Main execution function."""
-    print("=" * 80)
-    print("Neuroevolution Weight Space Visualization")
-    print("=" * 80)
-    print()
-    
-    # Create output directory for visualizations
-    output_dir = "results"
-    os.makedirs(output_dir, exist_ok=True)
-    print(f"Results will be saved to: {output_dir}/")
-    print()
-    
-    # Create toy dataset
-    print("Creating toy classification dataset...")
-    n_features = 4
-    n_classes = 3
-    X_train, X_test, y_train, y_test = create_toy_dataset(
-        n_samples=500,
-        n_features=n_features,
-        n_classes=n_classes,
-        random_state=42
+def run_experiment(args: argparse.Namespace) -> None:
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    X_train, X_test, y_train, y_test = generate_complex_dataset(
+        n_samples=args.samples,
+        seed=args.seed,
+        n_classes=args.classes
     )
-    print(f"  Train samples: {len(X_train)}")
-    print(f"  Test samples:  {len(X_test)}")
-    print(f"  Features:      {n_features}")
-    print(f"  Classes:       {n_classes}")
-    print()
-    
-    # Define MLP architecture
-    layer_sizes = [n_features, 10, n_classes]  # Input, Hidden, Output
-    print(f"MLP Architecture: {layer_sizes}")
-    print()
-    
-    # Initialize genetic algorithm
-    print("Initializing Genetic Algorithm...")
+
+    layer_sizes = [X_train.shape[1], 64, 32, y_train.max() + 1]
+    print(f"Dataset: {X_train.shape[0]} train / {X_test.shape[0]} test")
+    print(f"Features: {X_train.shape[1]} | Classes: {y_train.max() + 1}")
+    print(f"MLP architecture: {layer_sizes}")
+
     ga = GeneticAlgorithm(
         layer_sizes=layer_sizes,
-        population_size=50,
-        mutation_rate=0.1,
-        mutation_std=0.5,
-        elite_size=5,
-        tournament_size=3,
-        random_seed=42
+        population_size=args.population_size,
+        mutation_rate=args.mutation_rate,
+        mutation_std=args.mutation_std,
+        elite_size=args.elite_size,
+        tournament_size=args.tournament_size,
+        random_seed=args.seed,
     )
-    print(f"  Population size:    {ga.population_size}")
-    print(f"  Genome size:        {ga.genome_size} weights")
-    print(f"  Mutation rate:      {ga.mutation_rate}")
-    print(f"  Elite size:         {ga.elite_size}")
-    print()
-    
-    # Run genetic algorithm
-    print("Running Genetic Algorithm...")
-    print("-" * 80)
-    n_generations = 100
-    history = ga.run(X_train, y_train, generations=n_generations, verbose=True)
-    print("-" * 80)
-    print()
-    
-    # Evaluate best individual on test set
-    best_individual, best_fitness_train = ga.get_best_individual()
+
+    history = ga.run(X_train, y_train, generations=args.generations, verbose=True)
+
+    best_payload = ga.get_best_individual()
     mlp = FixedMLP(layer_sizes)
-    mlp.set_weights(best_individual)
-    predictions = mlp.predict(X_test)
-    test_accuracy = np.mean(predictions == y_test)
-    
-    print("Final Results:")
-    print(f"  Best train accuracy: {best_fitness_train:.4f}")
-    print(f"  Test accuracy:       {test_accuracy:.4f}")
-    print()
-    
-    # Generate visualizations
-    print("Generating visualizations...")
-    print()
-    
-    # 1. Fitness evolution
-    print("  1. Fitness evolution plot...")
-    fig1 = plot_fitness_evolution(
-        history,
-        save_path=os.path.join(output_dir, "fitness_evolution.png")
-    )
-    
-    # 2. MDS trajectory
-    print("  2. MDS trajectory of best individual...")
-    fig2 = plot_mds_trajectory(
+    mlp.set_weights(best_payload["weights"])
+    preds = mlp.predict(X_test)
+    test_accuracy = np.mean(preds == y_test)
+    print(f"\nBest train accuracy: {best_payload['fitness']:.3f}")
+    print(f"Test accuracy:       {test_accuracy:.3f}")
+
+    print("\nGenerating visualizations...")
+    plot_weight_heatmap(
         ga.best_individual_history,
-        save_path=os.path.join(output_dir, "mds_trajectory.png")
+        os.path.join(RESULTS_DIR, "weights_heatmap.png")
     )
-    
-    # 3. UMAP snapshots
-    print("  3. UMAP population snapshots...")
-    fig3 = plot_umap_snapshots(
+    plot_best_mds(
+        ga.best_individual_history,
+        os.path.join(RESULTS_DIR, "weights_mds.png")
+    )
+    plot_population_weight_stats(
+        ga.best_individual_history,
         ga.population_history,
-        ga.fitness_history,
-        snapshots=['start', 'mid', 'end'],
-        save_path=os.path.join(output_dir, "umap_snapshots.png")
+        os.path.join(RESULTS_DIR, "population_weight_stats.png")
     )
-    
-    print()
-    print("=" * 80)
-    print("Done! Check the results/ directory for visualizations.")
-    print("=" * 80)
+    print(f"Artifacts saved to {RESULTS_DIR}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Neuroevolution visualization demo")
+    parser.add_argument("--generations", type=int, default=180)
+    parser.add_argument("--population-size", type=int, default=70)
+    parser.add_argument("--mutation-rate", type=float, default=0.12)
+    parser.add_argument("--mutation-std", type=float, default=0.35)
+    parser.add_argument("--elite-size", type=int, default=5)
+    parser.add_argument("--tournament-size", type=int, default=4)
+    parser.add_argument("--samples", type=int, default=6000)
+    parser.add_argument("--classes", type=int, default=4)
+    parser.add_argument("--seed", type=int, default=0)
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    main()
+    run_experiment(parse_args())

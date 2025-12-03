@@ -1,211 +1,133 @@
-"""Visualization tools for weight space analysis."""
+"""Visualization utilities tailored to neuroevolution weight dynamics."""
+from __future__ import annotations
+
+from typing import Sequence
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import MDS
-from umap import UMAP
 
 
-def plot_mds_trajectory(best_individual_history, save_path=None):
-    """
-    Plot MDS 2D trajectory of the best individual over generations.
-    
-    Args:
-        best_individual_history: List of best individuals (weight vectors) per generation
-        save_path: Optional path to save the figure
-        
-    Returns:
-        matplotlib figure object
-    """
-    # Convert to array
-    weight_matrix = np.array(best_individual_history)
-    n_generations = len(weight_matrix)
-    
-    # Apply MDS to reduce to 2D
-    mds = MDS(n_components=2, random_state=42, dissimilarity='euclidean')
-    weights_2d = mds.fit_transform(weight_matrix)
-    
-    # Create the plot
-    fig, ax = plt.subplots(figsize=(10, 8))
-    
-    # Plot trajectory as a line
-    ax.plot(weights_2d[:, 0], weights_2d[:, 1], 'b-', alpha=0.3, linewidth=1)
-    
-    # Plot points colored by generation
-    scatter = ax.scatter(weights_2d[:, 0], weights_2d[:, 1], 
-                        c=np.arange(n_generations), 
-                        cmap='viridis', 
-                        s=50, 
-                        alpha=0.7,
-                        edgecolors='black',
-                        linewidth=0.5)
-    
-    # Mark start and end
-    ax.scatter(weights_2d[0, 0], weights_2d[0, 1], 
-              c='green', s=200, marker='*', 
-              edgecolors='black', linewidth=1.5,
-              label='Start', zorder=5)
-    ax.scatter(weights_2d[-1, 0], weights_2d[-1, 1], 
-              c='red', s=200, marker='*', 
-              edgecolors='black', linewidth=1.5,
-              label='End', zorder=5)
-    
-    # Add colorbar
-    cbar = plt.colorbar(scatter, ax=ax)
-    cbar.set_label('Generation', rotation=270, labelpad=20)
-    
-    ax.set_xlabel('MDS Dimension 1', fontsize=12)
-    ax.set_ylabel('MDS Dimension 2', fontsize=12)
-    ax.set_title('MDS 2D Trajectory of Best Individual in Weight Space', fontsize=14, fontweight='bold')
-    ax.legend(loc='best')
-    ax.grid(True, alpha=0.3)
-    
+def _ensure_dir(path: str) -> None:
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+
+
+def _as_matrix(history: Sequence[np.ndarray]) -> np.ndarray:
+    if history is None or len(history) == 0:
+        raise ValueError("history is empty.")
+    return np.vstack(history)
+
+
+def plot_weight_heatmap(best_history: Sequence[np.ndarray],
+                        save_path: str,
+                        max_weights: int = 256) -> None:
+    """2-D heatmap with generations on X and variable index on Y."""
+    matrix = _as_matrix(best_history)
+    if matrix.shape[1] > max_weights:
+        variances = matrix.var(axis=0)
+        idx = np.argsort(variances)[-max_weights:]
+        idx.sort()
+        matrix = matrix[:, idx]
+
+    data = matrix.T  # rows: variables, cols: generations
+    fig, ax = plt.subplots(figsize=(10, 5))
+    im = ax.imshow(data, aspect="auto", cmap="coolwarm", interpolation="nearest",
+                   origin="lower", extent=[0, data.shape[1] - 1, 0, data.shape[0] - 1])
+    ax.set_xlabel("Generation")
+    ax.set_ylabel("Variable index")
+    ax.set_title("Heatmap of best-individual weights over generations")
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Weight value")
     plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"MDS trajectory plot saved to {save_path}")
-    
-    return fig
+    _ensure_dir(save_path)
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
 
-def plot_umap_snapshots(population_history, fitness_history, 
-                        snapshots=['start', 'mid', 'end'],
-                        save_path=None):
-    """
-    Plot UMAP 2D projections of population at different time points.
-    
-    Args:
-        population_history: List of population arrays per generation
-        fitness_history: List of fitness arrays per generation
-        snapshots: List of snapshot names ('start', 'mid', 'end') or generation indices
-        save_path: Optional path to save the figure
-        
-    Returns:
-        matplotlib figure object
-    """
-    n_generations = len(population_history)
-    
-    # Determine snapshot indices
-    snapshot_indices = []
-    snapshot_labels = []
-    
-    for snap in snapshots:
-        if isinstance(snap, str):
-            if snap == 'start':
-                idx = 0
-                label = 'Start (Gen 0)'
-            elif snap == 'mid':
-                idx = n_generations // 2
-                label = f'Mid (Gen {idx})'
-            elif snap == 'end':
-                idx = n_generations - 1
-                label = f'End (Gen {idx})'
-            else:
-                raise ValueError(f"Unknown snapshot name: {snap}")
-        else:
-            idx = snap
-            label = f'Gen {idx}'
-        
-        snapshot_indices.append(idx)
-        snapshot_labels.append(label)
-    
-    # Create subplots
-    n_snapshots = len(snapshot_indices)
-    fig, axes = plt.subplots(1, n_snapshots, figsize=(7*n_snapshots, 6))
-    
-    if n_snapshots == 1:
+def plot_best_mds(best_history: Sequence[np.ndarray],
+                  save_path: str,
+                  random_state: int = 0) -> None:
+    """Map weight vectors into 2-D via MDS to visualize search trajectory."""
+    matrix = _as_matrix(best_history)
+    if matrix.shape[0] < 2:
+        raise ValueError("Need at least two generations for MDS plot.")
+
+    embedding = MDS(n_components=2, random_state=random_state, dissimilarity="euclidean")
+    coords = embedding.fit_transform(matrix)
+    generations = np.arange(matrix.shape[0])
+
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.plot(coords[:, 0], coords[:, 1], color="#bbbbbb", linewidth=1.2, alpha=0.6)
+    scatter = ax.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        c=generations,
+        cmap="viridis",
+        s=60,
+        edgecolor="black",
+        linewidth=0.4,
+    )
+    ax.scatter(coords[0, 0], coords[0, 1], marker="^", s=140,
+               color="#1b9e77", label="Start")
+    ax.scatter(coords[-1, 0], coords[-1, 1], marker="*", s=160,
+               color="#d95f02", label="End")
+    ax.set_xlabel("MDS dim 1")
+    ax.set_ylabel("MDS dim 2")
+    ax.set_title("Trajectory of best individual (MDS)")
+    ax.legend()
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_label("Generation")
+    ax.grid(alpha=0.3)
+    plt.tight_layout()
+    _ensure_dir(save_path)
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_population_weight_stats(best_history: Sequence[np.ndarray],
+                                 population_history: Sequence[np.ndarray],
+                                 save_path: str,
+                                 top_variables: int = 4) -> None:
+    """Line charts showing best weights and population statistics."""
+    best_matrix = _as_matrix(best_history)
+    if len(population_history) != len(best_matrix):
+        raise ValueError("Population history length must match best history.")
+
+    pop_mean = []
+    pop_std = []
+    for pop in population_history:
+        pop_mean.append(np.mean(pop, axis=0))
+        pop_std.append(np.std(pop, axis=0))
+    pop_mean = np.vstack(pop_mean)
+    pop_std = np.vstack(pop_std)
+
+    variances = best_matrix.var(axis=0)
+    idx = np.argsort(variances)[-min(top_variables, best_matrix.shape[1]):]
+    idx.sort()
+
+    generations = np.arange(best_matrix.shape[0])
+    n_vars = len(idx)
+    fig, axes = plt.subplots(n_vars, 1, figsize=(10, 3 * n_vars), sharex=True)
+    if n_vars == 1:
         axes = [axes]
-    
-    for ax, idx, label in zip(axes, snapshot_indices, snapshot_labels):
-        population = population_history[idx]
-        fitness = fitness_history[idx]
-        
-        # Apply UMAP with safe n_neighbors
-        n_neighbors = min(15, len(population) - 1)
-        umap_model = UMAP(n_components=2, random_state=42, n_neighbors=n_neighbors, min_dist=0.1)
-        pop_2d = umap_model.fit_transform(population)
-        
-        # Plot with fitness as color
-        scatter = ax.scatter(pop_2d[:, 0], pop_2d[:, 1], 
-                           c=fitness, 
-                           cmap='RdYlGn',
-                           s=100, 
-                           alpha=0.7,
-                           edgecolors='black',
-                           linewidth=0.5,
-                           vmin=0.0,
-                           vmax=1.0)
-        
-        # Mark best individual
-        best_idx = np.argmax(fitness)
-        ax.scatter(pop_2d[best_idx, 0], pop_2d[best_idx, 1],
-                  c='blue', s=300, marker='*',
-                  edgecolors='black', linewidth=2,
-                  label=f'Best (fit={fitness[best_idx]:.3f})',
-                  zorder=5)
-        
-        # Add colorbar
-        cbar = plt.colorbar(scatter, ax=ax)
-        cbar.set_label('Fitness', rotation=270, labelpad=20)
-        
-        ax.set_xlabel('UMAP Dimension 1', fontsize=11)
-        ax.set_ylabel('UMAP Dimension 2', fontsize=11)
-        ax.set_title(label, fontsize=12, fontweight='bold')
-        ax.legend(loc='best', fontsize=9)
-        ax.grid(True, alpha=0.3)
-    
-    fig.suptitle('UMAP 2D Population Projections: Diversity and Convergence', 
-                 fontsize=14, fontweight='bold', y=1.02)
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"UMAP snapshots plot saved to {save_path}")
-    
-    return fig
 
+    for ax, var_idx in zip(axes, idx):
+        ax.plot(generations, pop_mean[:, var_idx], color="#1f77b4", label="Population mean")
+        ax.fill_between(generations,
+                        pop_mean[:, var_idx] - pop_std[:, var_idx],
+                        pop_mean[:, var_idx] + pop_std[:, var_idx],
+                        alpha=0.2, color="#1f77b4", label="Population ±1 std")
+        ax.plot(generations, best_matrix[:, var_idx], color="#d62728",
+                linewidth=2.0, label="Best individual")
+        ax.set_ylabel(f"w[{var_idx}]")
+        ax.grid(alpha=0.2)
+        ax.legend(loc="upper right")
 
-def plot_fitness_evolution(history, save_path=None):
-    """
-    Plot fitness evolution over generations.
-    
-    Args:
-        history: Dictionary with 'generation', 'best_fitness', 'mean_fitness', 'std_fitness'
-        save_path: Optional path to save the figure
-        
-    Returns:
-        matplotlib figure object
-    """
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    generations = history['generation']
-    best_fitness = history['best_fitness']
-    mean_fitness = history['mean_fitness']
-    std_fitness = history['std_fitness']
-    
-    # Plot best and mean fitness
-    ax.plot(generations, best_fitness, 'b-', linewidth=2, label='Best Fitness')
-    ax.plot(generations, mean_fitness, 'g-', linewidth=2, label='Mean Fitness')
-    
-    # Plot standard deviation as shaded area
-    mean_array = np.array(mean_fitness)
-    std_array = np.array(std_fitness)
-    ax.fill_between(generations, 
-                    mean_array - std_array, 
-                    mean_array + std_array,
-                    alpha=0.2, color='green', label='±1 Std Dev')
-    
-    ax.set_xlabel('Generation', fontsize=12)
-    ax.set_ylabel('Fitness (Accuracy)', fontsize=12)
-    ax.set_title('Fitness Evolution Over Generations', fontsize=14, fontweight='bold')
-    ax.legend(loc='best')
-    ax.grid(True, alpha=0.3)
-    ax.set_ylim([0, 1.05])
-    
+    axes[-1].set_xlabel("Generation")
+    fig.suptitle("Population statistics per variable", fontsize=14)
     plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Fitness evolution plot saved to {save_path}")
-    
-    return fig
+    _ensure_dir(save_path)
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
