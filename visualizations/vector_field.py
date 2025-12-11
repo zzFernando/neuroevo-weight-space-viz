@@ -1,6 +1,4 @@
-"""
-Vector Field visualization following Cantareira et al. (2020).
-"""
+"""Vector Field visualization."""
 
 from __future__ import annotations
 
@@ -8,9 +6,12 @@ from typing import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from utils import compute_aligned_umap_embedding
-from .common import AdaptiveColorNorm, build_fitness_quantile_colormap, scatter_2d
+from .common import build_fitness_quantile_colormap, mpl_cmap_to_plotly_scale, scatter_2d
 
 
 def _compute_velocity_grid(per_gen_embeddings: Sequence[np.ndarray], grid_res: int):
@@ -97,6 +98,46 @@ def _draw_vectors(ax, X, Y, U, V, speed, mode: str, cmap):
     )
 
 
+def _prepare_field_data(
+    weights_by_gen: Sequence[np.ndarray],
+    fitness_by_gen: Sequence[np.ndarray],
+    lambda_align: float,
+    grid_res: int,
+    random_state: int,
+    normalize_vectors: bool,
+    smoothing_sigma: float,
+    subsample: int,
+    quantize_bins: int | None,
+):
+    embedding, gen_labels, per_gen_embeddings = compute_aligned_umap_embedding(
+        weights_by_gen, lambda_align=lambda_align, random_state=random_state
+    )
+    Xc, Yc, U, V, speed = _compute_velocity_grid(per_gen_embeddings, grid_res=grid_res)
+
+    if normalize_vectors:
+        mag = np.sqrt(U ** 2 + V ** 2)
+        U = np.ma.array(np.where(mag > 0, U / mag, 0), mask=U.mask)
+        V = np.ma.array(np.where(mag > 0, V / mag, 0), mask=V.mask)
+    if smoothing_sigma > 0:
+        U = _gaussian_smooth(U, sigma=smoothing_sigma)
+        V = _gaussian_smooth(V, sigma=smoothing_sigma)
+        speed = np.sqrt(U ** 2 + V ** 2)
+
+    if subsample > 1:
+        U = U[::subsample, ::subsample]
+        V = V[::subsample, ::subsample]
+        Xc = Xc[::subsample, ::subsample]
+        Yc = Yc[::subsample, ::subsample]
+        speed = speed[::subsample, ::subsample]
+
+    if quantize_bins and quantize_bins > 1:
+        quantized = np.linspace(speed.min(), speed.max(), quantize_bins)
+        speed = np.digitize(speed, quantized)
+
+    fitness_concat = np.concatenate(fitness_by_gen) if fitness_by_gen else np.array([])
+    return embedding, gen_labels, fitness_concat, Xc, Yc, U, V, speed
+
+
 def plot(
     weights_by_gen: Sequence[np.ndarray],
     fitness_by_gen: Sequence[np.ndarray],
@@ -122,32 +163,26 @@ def plot(
     - left: points colored by generation (continuous gradient)
     - right: points colored by fitness
     """
-    embedding, gen_labels, per_gen_embeddings = compute_aligned_umap_embedding(
-        weights_by_gen, lambda_align=lambda_align, random_state=random_state
+    (
+        embedding,
+        gen_labels,
+        fitness_concat,
+        Xc,
+        Yc,
+        U,
+        V,
+        speed,
+    ) = _prepare_field_data(
+        weights_by_gen,
+        fitness_by_gen,
+        lambda_align,
+        grid_res,
+        random_state,
+        normalize_vectors,
+        smoothing_sigma,
+        subsample,
+        quantize_bins,
     )
-
-    Xc, Yc, U, V, speed = _compute_velocity_grid(per_gen_embeddings, grid_res=grid_res)
-    if normalize_vectors:
-        mag = np.sqrt(U ** 2 + V ** 2)
-        U = np.ma.array(np.where(mag > 0, U / mag, 0), mask=U.mask)
-        V = np.ma.array(np.where(mag > 0, V / mag, 0), mask=V.mask)
-    if smoothing_sigma > 0:
-        U = _gaussian_smooth(U, sigma=smoothing_sigma)
-        V = _gaussian_smooth(V, sigma=smoothing_sigma)
-        speed = np.sqrt(U ** 2 + V ** 2)
-
-    if subsample > 1:
-        U = U[::subsample, ::subsample]
-        V = V[::subsample, ::subsample]
-        Xc = Xc[::subsample, ::subsample]
-        Yc = Yc[::subsample, ::subsample]
-        speed = speed[::subsample, ::subsample]
-
-    if quantize_bins and quantize_bins > 1:
-        quantized = np.linspace(speed.min(), speed.max(), quantize_bins)
-        speed = np.digitize(speed, quantized)
-
-    fitness_concat = np.concatenate(fitness_by_gen) if fitness_by_gen else np.array([])
     cmap_fit, fit_norm, boundaries = build_fitness_quantile_colormap(
         fitness_concat, n_bins=fitness_bins, cmap_name=cmap_fit.name if hasattr(cmap_fit, "name") else "plasma"
     )
@@ -190,4 +225,174 @@ def plot(
     cbar_speed.set_label("Velocity magnitude")
 
     fig.tight_layout()
+    return fig
+
+
+def plot_interactive(
+    weights_by_gen: Sequence[np.ndarray],
+    fitness_by_gen: Sequence[np.ndarray],
+    lambda_align: float = 0.3,
+    grid_res: int = 20,
+    random_state: int = 42,
+    show_points: bool = True,
+    normalize_vectors: bool = False,
+    smoothing_sigma: float = 1.0,
+    subsample: int = 1,
+    vector_mode: str = "stream",  # kept for API parity, arrows are quiver-like here
+    quantize_bins: int | None = None,
+    cmap_gen=plt.cm.plasma,
+    cmap_fit=plt.cm.cividis,
+    cmap_speed=plt.cm.magma,
+    norm_mode: str = "power",
+    gamma: float = 0.3,
+    fitness_bins: int = 9,
+):
+    """
+    Interactive Plotly variant of the vector field visualization.
+    """
+    _ = (vector_mode, norm_mode, gamma)  # kept for signature compatibility; arrows are rendered as quivers
+    (
+        embedding,
+        gen_labels,
+        fitness_concat,
+        Xc,
+        Yc,
+        U,
+        V,
+        speed,
+    ) = _prepare_field_data(
+        weights_by_gen,
+        fitness_by_gen,
+        lambda_align,
+        grid_res,
+        random_state,
+        normalize_vectors,
+        smoothing_sigma,
+        subsample,
+        quantize_bins,
+    )
+
+    colorscale_gen = mpl_cmap_to_plotly_scale(cmap_gen)
+    cmap_fit, _fit_norm, boundaries = build_fitness_quantile_colormap(
+        fitness_concat, n_bins=fitness_bins, cmap_name=cmap_fit.name if hasattr(cmap_fit, "name") else "plasma"
+    )
+    colorscale_fit = mpl_cmap_to_plotly_scale(cmap_fit)
+    colorscale_speed = mpl_cmap_to_plotly_scale(cmap_speed)
+
+    speed_img = np.ma.filled(speed, np.nan)
+    speed_min = float(np.nanmin(speed_img)) if np.any(~np.isnan(speed_img)) else 0.0
+    speed_max = float(np.nanmax(speed_img)) if np.any(~np.isnan(speed_img)) else 1.0
+
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=["Vector Field — Generation", "Vector Field — Fitness"],
+        shared_xaxes=True,
+        shared_yaxes=True,
+        horizontal_spacing=0.08,
+    )
+
+    def add_vector_panel(col: int, show_colorbar: bool):
+        fig.add_trace(
+            go.Heatmap(
+                x=Xc[0],
+                y=Yc[:, 0],
+                z=speed_img,
+                colorscale=colorscale_speed,
+                showscale=show_colorbar,
+                colorbar=dict(title="Velocity magnitude") if show_colorbar else None,
+                opacity=0.55,
+                zmin=speed_min,
+                zmax=speed_max,
+                hovertemplate="Speed %{z:.4f}<extra></extra>",
+            ),
+            row=1,
+            col=col,
+        )
+
+        valid = ~U.mask if isinstance(U, np.ma.MaskedArray) else np.ones_like(U, dtype=bool)
+        X_flat = Xc[valid]
+        Y_flat = Yc[valid]
+        U_flat = U[valid]
+        V_flat = V[valid]
+
+        if X_flat.size:
+            quiv = ff.create_quiver(
+                X_flat,
+                Y_flat,
+                U_flat,
+                V_flat,
+                scale=0.2,
+                arrow_scale=0.25,
+                line_color="black",
+                name="flow",
+            )
+            for trace in quiv.data:
+                trace.showlegend = False
+                fig.add_trace(trace, row=1, col=col)
+
+    add_vector_panel(col=1, show_colorbar=False)
+    add_vector_panel(col=2, show_colorbar=True)
+
+    if len(embedding) and show_points:
+        customdata = (
+            np.stack([gen_labels, fitness_concat], axis=1) if len(fitness_concat) == len(gen_labels) else None
+        )
+        gen_min, gen_max = gen_labels.min(), gen_labels.max()
+        tick_positions = np.linspace(0, len(boundaries) - 2, 5, dtype=int)
+        tick_values = [0.5 * (boundaries[i] + boundaries[i + 1]) for i in tick_positions]
+
+        fig.add_trace(
+            go.Scattergl(
+                x=embedding[:, 0],
+                y=embedding[:, 1],
+                mode="markers",
+                marker=dict(
+                    size=6,
+                    color=gen_labels,
+                    colorscale=colorscale_gen,
+                    colorbar=dict(title="Generation index"),
+                    cmin=gen_min,
+                    cmax=gen_max,
+                    opacity=0.7,
+                ),
+                hovertemplate="Gen %{customdata[0]}<br>Fitness %{customdata[1]:.3f}<extra></extra>"
+                if customdata is not None
+                else "Gen %{marker.color}<extra></extra>",
+                customdata=customdata,
+            ),
+            row=1,
+            col=1,
+        )
+
+        fig.add_trace(
+            go.Scattergl(
+                x=embedding[:, 0],
+                y=embedding[:, 1],
+                mode="markers",
+                marker=dict(
+                    size=6,
+                    color=fitness_concat,
+                    colorscale=colorscale_fit,
+                    colorbar=dict(
+                        title="Fitness (quantile bins)",
+                        tickvals=tick_values,
+                        ticktext=[f"{v:.2f}" for v in tick_values],
+                    ),
+                    cmin=boundaries[0],
+                    cmax=boundaries[-1],
+                    opacity=0.7,
+                ),
+                hovertemplate="Fitness %{marker.color:.3f}<br>Gen %{customdata[0]}<extra></extra>"
+                if customdata is not None
+                else "Fitness %{marker.color:.3f}<extra></extra>",
+                customdata=customdata,
+            ),
+            row=1,
+            col=2,
+        )
+
+    fig.update_xaxes(title="UMAP-1")
+    fig.update_yaxes(title="UMAP-2")
+    fig.update_layout(height=540, showlegend=False, margin=dict(l=40, r=20, t=60, b=40))
     return fig

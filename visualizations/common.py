@@ -99,6 +99,15 @@ def build_fitness_quantile_colormap(fitness_values: np.ndarray, n_bins: int = 9,
     return cmap, norm, boundaries
 
 
+def mpl_cmap_to_plotly_scale(cmap, n: int = 256):
+    """
+    Convert a Matplotlib colormap into a Plotly-compatible colorscale list.
+    """
+    colors = cmap(np.linspace(0, 1, n))
+    scale = [(i / (n - 1), mcolors.to_hex(c)) for i, c in enumerate(colors)]
+    return scale
+
+
 # -----------------------------------------------------------------------------
 # Scatter helpers
 # -----------------------------------------------------------------------------
