@@ -1,73 +1,55 @@
-# Neuroevolution Weight Space Visualization
+# Neuroevolution Weight-Space Visualizer
 
-This project focuses on *how* neural weights move and organize during neuroevolution. We evolve a fixed-topology MLP on a deliberately complex dataset and export visualizations that highlight the dynamics of each generation.
+Streamlit app with three visualizations - Aligned UMAP, Vector Field, and Trajectory Bundling - to inspect how a neuroevolved population moves through weight space.
 
-## What's Included
+## What's inside
+- **Aligned UMAP:** per-generation UMAPs with temporal post-alignment `proj_aligned = proj_k - lambda * (proj_k - proj_ref)`, shown side by side with generation and fitness coloring.
+- **Vector Field:** average displacements between consecutive generations aggregated on a 2D grid, rendered as streamlines or quivers with optional smoothing and normalization.
+- **Trajectory Bundling:** resampled trajectories, iterative attraction (`beta`) between nearby control points, optional Catmull-Rom smoothing, clustering, and best-trajectory highlighting.
+- **Data generation:** lightweight neuroevolution of a one-hidden-layer MLP on `make_moons`; fitness is negative cross-entropy, mutation-only updates.
+- **Interactive mode:** toggle in the sidebar to switch between static Matplotlib renders and Plotly charts with hover + zoom.
 
-- **Complex dataset generator** – mixes spirals, moons, circles and noisy blobs into a high-dimensional classification challenge (`neuroevo/datasets.py`). The problem is hard enough to justify the visualization effort.
-- **Minimal GA** – a lean yet fully traceable genetic algorithm that keeps every population, best genome and diversity score (`neuroevo/genetic_algorithm.py`).
-- **Visualization suite** – four plots purpose-built for weight-space analysis (`neuroevo/visualizations.py`):
-  1. PCA trajectory of the best genome across generations.
-  2. Heatmap of the most dynamic weights, generation vs. weight index.
-  3. PCA projection of whole populations at different checkpoints.
-  4. Dual-axis curve showing best fitness vs. mean pairwise diversity.
+Project layout:
+- `app.py` - Streamlit UI and orchestration.
+- `utils.py` - neuroevolution loop plus aligned UMAP helper.
+- `visualizations/` - `aligned_umap.py`, `vector_field.py`, `trajectory_bundling.py`, and common plotting helpers.
+- `requirements.txt` - Python dependencies.
+- Reference paper (PDF in repo) for the original methodology.
 
-These artifacts aim to contribute new ideas to the neuroevolution visualization literature, especially for tracking weight evolution rather than just fitness curves.
-
-## Installation
+## Install
+Tested with Python 3.10-3.11.
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # or .venv\\Scripts\\activate on Windows
 pip install -r requirements.txt
 ```
 
-## Usage
-
+## Run
 ```bash
-python main.py \
-  --generations 180 \
-  --population-size 70 \
-  --samples 6000 \
-  --seed 0
+streamlit run app.py
 ```
+Click **Run / Refresh** in the sidebar after adjusting parameters; evolution and alignment are cached for faster iteration.
 
-Outputs are saved under `results/`:
+## Controls at a glance
+- **Neuroevolution:** population size, generations, hidden neurons, mutation rate, seed.
+- **UMAP / coloring:** lambda (alignment strength), fitness/generation colormaps, normalization (`power`, `clipped`, `equalized`), gamma, fitness quantile bins.
+- **Vector Field:** grid resolution, show points, normalize vectors, Gaussian smoothing (sigma), subsample, mode (`stream` or `quiver`), speed quantization bins.
+- **Trajectory Bundling:** control points (K), beta, iterations, neighbor radius (as a fraction of embedding diameter), highlight best trajectory, temporal smoothing window, curve type (`catmull-rom` or `polyline`), clusters, max trajectories rendered.
+- **Bilingual UI:** toggle Português/English in the sidebar; each tab describes the visualization and its parameters.
 
-| File | Description |
-| --- | --- |
-| `weights_heatmap.png` | Heatmap (gerações × variáveis) do melhor indivíduo |
-| `weights_mds.png` | Trajetória 2-D via MDS dos vetores de pesos |
-| `population_weight_stats.png` | Linhas com média ± desvio da população vs. melhor indivíduo |
+## Notes
+- Neighbor radius from the UI is scaled by the embedding diameter before bundling.
+- Dependencies are pinned to keep numpy < 2.0 and a matching numba/llvmlite pair, which avoids clashing with common global installs (for example statsmodels or manim). Use a fresh virtualenv to prevent pip from touching unrelated packages.
+- Numba threading is forced to `omp` to avoid the non-threadsafe `workqueue` backend that can crash under Streamlit reruns. Remove any `NUMBA_NUM_THREADS` env var if set.
+- Plotly é usado nas versões interativas; Matplotlib permanece como opção estática.
 
-## Project Structure
-
-```
-neuroevo-weight-space-viz/
-├── main.py
-├── neuroevo/
-│   ├── __init__.py
-│   ├── datasets.py         # complex dataset generator
-│   ├── genetic_algorithm.py
-│   ├── mlp.py
-│   └── visualizations.py
-├── results/                # generated artifacts
-├── tests/
-└── README.md
-```
-
-## Extending
-
-- Modify `generate_complex_dataset` to experiment with other manifolds.
-- Adjust GA hyperparameters via CLI flags (`--mutation-rate`, `--mutation-std`, `--elite-size`, etc.).
-- Add new visualization ideas in `neuroevo/visualizations.py`; all histories are already stored.
-
-## Testing
-
-```bash
-python -m unittest discover tests -v
-```
-
-The suite checks dataset properties, GA bookkeeping and visualization smoke tests.
-
----
-
-Created for research on novel visualizations for neuroevolution weight dynamics.
+## Troubleshooting installs
+- If pip reports conflicts for packages you do not use here (for example embedchain, manim, crewai, langchain), it means you are installing into an environment shared with other projects. Activate a fresh venv before installing:
+  ```bash
+  python -m venv .venv
+  source .venv/bin/activate
+  pip install --upgrade pip
+  pip install -r requirements.txt
+  ```
+- If you must stay in a shared environment, upgrade the conflicting packages so their constraints are met (e.g., `python-dotenv>=1.0,<2`, `manimpango>=0.5,<1`, and compatible langchain versions).
