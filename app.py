@@ -212,7 +212,7 @@ language = st.sidebar.radio(
     TEXTS["pt"]["lang_label"],
     ["pt", "en"],
     format_func=lambda v: TEXTS["pt"]["lang_names"][v],
-    index=0,
+    index=1,
 )
 
 
@@ -239,7 +239,7 @@ lambda_align = st.sidebar.slider(t("lambda_align"), 0.0, 1.0, 0.3, step=0.05)
 render_mode = st.sidebar.radio(
     t("render_mode"),
     [t("render_interactive"), t("render_static")],
-    index=0,
+    index=1,
 )
 use_interactive = render_mode.startswith("Interativa") or render_mode.startswith("Interactive")
 
