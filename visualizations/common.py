@@ -13,9 +13,6 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
 
-# -----------------------------------------------------------------------------
-# Color normalization and colormaps
-# -----------------------------------------------------------------------------
 class EqualizedHistNorm(mcolors.Normalize):
     def __init__(self, values: np.ndarray, bins: int = 256):
         values = np.asarray(values)
@@ -74,10 +71,9 @@ def get_discrete_cmap(name: str, n: int = 20):
     return plt.cm.get_cmap(name, n)
 
 
-# -----------------------------------------------------------------------------
-# Quantile-based fitness colormap
-# -----------------------------------------------------------------------------
-def build_fitness_quantile_colormap(fitness_values: np.ndarray, n_bins: int = 9, cmap_name: str = "plasma"):
+def build_fitness_quantile_colormap(
+    fitness_values: np.ndarray, n_bins: int = 9, cmap_name_or_obj="plasma"
+):
     """
     Build a quantile-based discrete colormap for fitness values.
     """
@@ -93,7 +89,10 @@ def build_fitness_quantile_colormap(fitness_values: np.ndarray, n_bins: int = 9,
     boundaries[0] -= 1e-9
     boundaries[-1] += 1e-9
 
-    base_cmap = plt.get_cmap(cmap_name)
+    if isinstance(cmap_name_or_obj, mcolors.Colormap):
+        base_cmap = cmap_name_or_obj
+    else:
+        base_cmap = plt.get_cmap(cmap_name_or_obj)
     cmap = mcolors.ListedColormap(base_cmap(np.linspace(0, 1, n_bins)))
     norm = mcolors.BoundaryNorm(boundaries, cmap.N)
     return cmap, norm, boundaries
@@ -108,9 +107,6 @@ def mpl_cmap_to_plotly_scale(cmap, n: int = 256):
     return scale
 
 
-# -----------------------------------------------------------------------------
-# Scatter helpers
-# -----------------------------------------------------------------------------
 def density_based_alpha(points: np.ndarray, base_alpha: float = 0.4, k: int = 15) -> np.ndarray:
     """
     Compute alphas inversely proportional to local density using k-NN distances.

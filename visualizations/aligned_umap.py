@@ -37,9 +37,7 @@ def plot(
         raise ValueError("fitness_by_gen and weights_by_gen must have the same length.")
 
     fitness_concat = np.concatenate(fitness_by_gen) if fitness_by_gen else np.array([])
-    cmap_fit, fit_norm, boundaries = build_fitness_quantile_colormap(
-        fitness_concat, n_bins=fitness_bins, cmap_name=cmap_fit.name if hasattr(cmap_fit, "name") else "plasma"
-    )
+    cmap_fit, fit_norm, boundaries = build_fitness_quantile_colormap(fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharex=True, sharey=True)
 
@@ -60,7 +58,7 @@ def plot(
     ax.set_xlabel("UMAP-1")
     ax.set_ylabel("UMAP-2")
     cbar = fig.colorbar(sc, ax=ax, orientation="horizontal", pad=0.12, fraction=0.05)
-    cbar.set_label("Fitness (quantile bins)")
+    cbar.set_label("Fitness")
     tick_positions = np.linspace(0, len(boundaries) - 2, 5, dtype=int)
     tick_values = [0.5 * (boundaries[i] + boundaries[i + 1]) for i in tick_positions]
     cbar.set_ticks(tick_values)
@@ -114,7 +112,7 @@ def plot_interactive(
                     size=7,
                     color=gen_labels,
                     colorscale=colorscale_gen,
-                    colorbar=dict(title="Generation index"),
+                    colorbar=dict(title="Generation", x=0.45),
                     cmin=gen_min,
                     cmax=gen_max,
                     opacity=0.75,
@@ -129,11 +127,14 @@ def plot_interactive(
         )
 
         cmap_fit, _fit_norm, boundaries = build_fitness_quantile_colormap(
-            fitness_concat, n_bins=fitness_bins, cmap_name=cmap_fit.name if hasattr(cmap_fit, "name") else "plasma"
+            fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit
         )
         colorscale_fit = mpl_cmap_to_plotly_scale(cmap_fit)
-        tick_positions = np.linspace(0, len(boundaries) - 2, 5, dtype=int)
-        tick_values = [0.5 * (boundaries[i] + boundaries[i + 1]) for i in tick_positions]
+        bin_centers = [0.5 * (boundaries[i] + boundaries[i + 1]) for i in range(len(boundaries) - 1)]
+        bin_idx = np.digitize(fitness_concat, boundaries[1:-1], right=False)
+        bin_idx = np.clip(bin_idx, 0, fitness_bins - 1)
+        tick_vals = list(range(fitness_bins))
+        tick_text = [f"{v:.2f}" for v in bin_centers]
 
         fig.add_trace(
             go.Scattergl(
@@ -142,20 +143,21 @@ def plot_interactive(
                 mode="markers",
                 marker=dict(
                     size=7,
-                    color=fitness_concat,
+                    color=bin_idx,
                     colorscale=colorscale_fit,
                     colorbar=dict(
-                        title="Fitness (quantile bins)",
-                        tickvals=tick_values,
-                        ticktext=[f"{v:.2f}" for v in tick_values],
+                        title="Fitness",
+                        tickvals=tick_vals,
+                        ticktext=tick_text,
+                        x=1.03,
                     ),
-                    cmin=boundaries[0],
-                    cmax=boundaries[-1],
+                    cmin=0,
+                    cmax=fitness_bins - 1,
                     opacity=0.8,
                 ),
-                hovertemplate="Fitness %{marker.color:.3f}<br>Gen %{customdata[0]}<extra></extra>"
+                hovertemplate="Fitness bin %{marker.color}<br>Gen %{customdata[0]}<extra></extra>"
                 if customdata is not None
-                else "Fitness %{marker.color:.3f}<extra></extra>",
+                else "Fitness bin %{marker.color}<extra></extra>",
                 customdata=customdata,
             ),
             row=1,

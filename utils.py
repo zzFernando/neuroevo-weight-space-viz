@@ -8,10 +8,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
+import warnings
+
 import numpy as np
 import umap
 from sklearn.datasets import make_moons
 from sklearn.preprocessing import StandardScaler
+
+warnings.filterwarnings("ignore", message="n_jobs value 1 overridden to 1 by setting random_state")
 
 
 @dataclass

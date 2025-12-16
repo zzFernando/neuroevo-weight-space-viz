@@ -1,0 +1,146 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{metropolis}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+\title{Visualizing Weight-Space Dynamics in Neuroevolution\\using Aligned Projections and Vector Fields}
+\subtitle{Seminário de Acompanhamento — Mestrado em Ciência da Computação}
+\author{Fernando Souza da Silveira \\ Orientador: Prof. Dr. Bruno Iochins Grisci}
+\institute{PPGC — Instituto de Informática — UFRGS}
+\date{Dezembro de 2025}
+
+\begin{document}
+
+%------------------------------------------------------------
+\begin{frame}
+  \titlepage
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{1. Introdução / Contexto}
+  \begin{itemize}
+      \item Tema: visualização da evolução temporal de populações de pesos em redes neurais otimizadas via neuroevolução.
+      \item Área: Inteligência Artificial e Aprendizado de Máquina, com foco em dinâmica populacional e interpretabilidade.
+      \item Motivação: mesmo modelos pequenos apresentam comportamento difícil de observar; em redes profundas, o espaço de pesos torna-se altamente complexo e multidimensional.
+      \item Meta geral: tornar o \textbf{weight-space} observável, interpretável e analisável ao longo das gerações.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{2. Problema de Pesquisa}
+  \begin{itemize}
+      \item Lacuna: visualizações em neuroevolução geralmente se limitam ao desempenho (fitness), sem representar diretamente o comportamento da população no espaço de pesos.
+      \item Desafio: projeções 2D podem variar drasticamente entre gerações; mutações estocásticas introduzem ruído que mascara padrões reais.
+      \item Problema formal: como obter uma visualização coerente, estável e comparável da dinâmica populacional de pesos ao longo das gerações?
+      \item Hipótese: projeções alinhadas e trajetórias suavizadas podem revelar estruturas globais de fluxo, convergência e estabilidade.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{3. Objetivos}
+  \begin{itemize}
+      \item \textbf{Geral}: visualizar e analisar a evolução do espaço de pesos em algoritmos de neuroevolução.
+      \item \textbf{Específicos}:
+      \begin{itemize}
+          \item Construir um pipeline composto por projeção, alinhamento temporal, análise de fluxo e agrupamento de trajetórias.
+          \item Identificar padrões de convergência, deriva, bifurcação e regiões estáveis da população.
+          \item Disponibilizar ferramenta interativa para exploração e reprodutibilidade das visualizações.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{4. Fundamentação / Trabalhos Relacionados}
+  \begin{itemize}
+      \item Cantareira et al. (2020): alinhamento de projeções e campos vetoriais para explorar a evolução de ativações internas em DNNs.
+      \item Visual analytics em otimização: foco predominante em trajetórias de treinamento via SGD; há pouca exploração de dinâmicas populacionais.
+      \item Limitações atuais: dificuldade em acompanhar múltiplas gerações, instabilidade de embeddings e alto ruído visual.
+      \item Contribuição: aplicação do framework de alinhamento e análise de fluxo \textbf{diretamente ao espaço de pesos} de populações neuroevolutivas.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{5. Dataset / Materiais}
+  \begin{itemize}
+      \item \textbf{Dados}: make\_moons (400 amostras, noise=0.25), com padronização (StandardScaler).
+      \item \textbf{Modelo}: MLP compacto (entrada 2 → oculta 16–128 → saída 1), ativações \texttt{tanh}/\texttt{sigmoid}.
+      \item \textbf{Justificativa}: cenário leve e reprodutível, ideal para inspecionar padrões de evolução paramétrica.
+      \item \textbf{Coleta}: pesos achatados por geração, acompanhados do respectivo fitness.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{6. Metodologia}
+  \begin{itemize}
+      \item \textbf{Neuroevolução}: população inicial amostrada de $\mathcal{N}(0,0.5)$; mutações gaussianas adicionadas aos pesos; elitismo de 20\%.
+      \item \textbf{Fitness}: log-loss negativo (maior fitness indica menor erro).
+      \item \textbf{Pipeline}: gerar população → avaliar → mutar → coletar pesos/fitness → projetar via UMAP → alinhar → derivar fluxos → visualizar.
+      \item \textbf{Visualizações}: Aligned UMAP (projeções estáveis por geração) e Vector Field (fluxo médio da população).
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{7. Resultados Parciais}
+  \begin{center}
+      \includegraphics[width=0.88\linewidth]{aligned_umap.png}
+  \end{center}
+  \begin{itemize}
+      \item \textbf{Aligned UMAP:} projeções alinhadas revelam deriva consistente e formação de regiões associadas a diferentes níveis de fitness.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{7. Resultados Parciais (cont.)}
+  \begin{center}
+      \includegraphics[width=0.88\linewidth]{vector_field.png}
+  \end{center}
+  \begin{itemize}
+      \item \textbf{Vector Field:} sintetiza deslocamentos médios da população, evidenciando direções predominantes de adaptação no embedding.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{8. Trabalhos em Progresso / Pendências}
+  \begin{itemize}
+      \item Estabilização adicional do aligned UMAP (controle de random state e parâmetros de vizinhança).
+      \item Suavização laplaciana e discretização adaptativa no campo vetorial.
+      \item Avaliação em populações maiores e múltiplas execuções para robustez.
+      \item Ampliação experimental com MNIST e CuMiDa.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{9. Plano de Continuidade}
+  \begin{itemize}
+      \item \textbf{Jan–Fev/2025:} ajustes no alinhamento e refinamento do vector field.
+      \item \textbf{Mar–Abr/2025:} novos experimentos e comparação entre runs e com SGD.
+      \item \textbf{Mai/2025:} redação dos capítulos finais.
+      \item \textbf{Jun/2025:} revisão completa e defesa.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{10. Conclusão Parcial}
+  \begin{itemize}
+      \item Pipeline completo implementado e funcional.
+      \item Visualizações revelam padrões estruturais no espaço de pesos: regiões estáveis, deriva e fluxo predominante.
+      \item Ferramenta interativa pronta para análise exploratória e extensão a novos contextos.
+      \item Expectativa: consolidar o método como abordagem de \textbf{visual analytics} aplicada à neuroevolução.
+  \end{itemize}
+\end{frame}
+
+%------------------------------------------------------------
+\begin{frame}{Perguntas}
+  \centering
+  Obrigado! \\
+  \vspace{0.5cm}
+  \textbf{Perguntas?}
+\end{frame}
+
+\end{document}

@@ -60,6 +60,15 @@ def _compute_velocity_grid(per_gen_embeddings: Sequence[np.ndarray], grid_res: i
     return Xc, Yc, np.ma.array(U_mean, mask=mask), np.ma.array(V_mean, mask=mask), speed
 
 
+def _masked_speed(U: np.ma.MaskedArray, V: np.ma.MaskedArray) -> np.ma.MaskedArray:
+    """
+    Compute speed with mask preserved, avoiding warnings from invalid values.
+    """
+    U_f = np.ma.filled(U, 0.0)
+    V_f = np.ma.filled(V, 0.0)
+    return np.ma.array(np.sqrt(U_f ** 2 + V_f ** 2), mask=U.mask | V.mask)
+
+
 def _gaussian_kernel(sigma: float) -> np.ndarray:
     half_size = max(1, int(3 * sigma))
     x = np.arange(-half_size, half_size + 1)
@@ -115,20 +124,20 @@ def _prepare_field_data(
     Xc, Yc, U, V, speed = _compute_velocity_grid(per_gen_embeddings, grid_res=grid_res)
 
     if normalize_vectors:
-        mag = np.sqrt(U ** 2 + V ** 2)
+        mag = _masked_speed(U, V)
         U = np.ma.array(np.where(mag > 0, U / mag, 0), mask=U.mask)
         V = np.ma.array(np.where(mag > 0, V / mag, 0), mask=V.mask)
     if smoothing_sigma > 0:
         U = _gaussian_smooth(U, sigma=smoothing_sigma)
         V = _gaussian_smooth(V, sigma=smoothing_sigma)
-        speed = np.sqrt(U ** 2 + V ** 2)
+        speed = _masked_speed(U, V)
 
     if subsample > 1:
         U = U[::subsample, ::subsample]
         V = V[::subsample, ::subsample]
         Xc = Xc[::subsample, ::subsample]
         Yc = Yc[::subsample, ::subsample]
-        speed = speed[::subsample, ::subsample]
+        speed = _masked_speed(U, V)
 
     if quantize_bins and quantize_bins > 1:
         quantized = np.linspace(speed.min(), speed.max(), quantize_bins)
@@ -156,6 +165,7 @@ def plot(
     norm_mode: str = "power",
     gamma: float = 0.3,
     fitness_bins: int = 9,
+    show_speed_colorbar: bool = False,
 ):
     """
     Plot streamlines of the average displacement field between consecutive
@@ -184,7 +194,7 @@ def plot(
         quantize_bins,
     )
     cmap_fit, fit_norm, boundaries = build_fitness_quantile_colormap(
-        fitness_concat, n_bins=fitness_bins, cmap_name=cmap_fit.name if hasattr(cmap_fit, "name") else "plasma"
+        fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit
     )
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharex=True, sharey=True)
@@ -208,7 +218,7 @@ def plot(
     if show_points:
         sc = scatter_2d(ax, embedding, fitness_concat, cmap_fit, fit_norm, size=10, base_alpha=0.5)
         cbar_fit = fig.colorbar(sc, ax=ax, orientation="horizontal", pad=0.12, fraction=0.05)
-        cbar_fit.set_label("Fitness (quantile bins)")
+        cbar_fit.set_label("Fitness")
         tick_positions = np.linspace(0, len(boundaries) - 2, 5, dtype=int)
         tick_values = [0.5 * (boundaries[i] + boundaries[i + 1]) for i in tick_positions]
         cbar_fit.set_ticks(tick_values)
@@ -220,9 +230,10 @@ def plot(
     ax.set_ylabel("UMAP-2")
     ax.grid(alpha=0.2, linestyle="--", linewidth=0.5)
 
-    speed_artist = strm_right if vector_mode == "quiver" else strm_right.lines
-    cbar_speed = fig.colorbar(speed_artist, ax=axes, fraction=0.035, pad=0.02)
-    cbar_speed.set_label("Velocity magnitude")
+    if show_speed_colorbar:
+        speed_artist = strm_right if vector_mode == "quiver" else strm_right.lines
+        cbar_speed = fig.colorbar(speed_artist, ax=axes, fraction=0.035, pad=0.02)
+        cbar_speed.set_label("Velocity magnitude")
 
     fig.tight_layout()
     return fig
@@ -246,6 +257,7 @@ def plot_interactive(
     norm_mode: str = "power",
     gamma: float = 0.3,
     fitness_bins: int = 9,
+    show_speed_colorbar: bool = False,
 ):
     """
     Interactive Plotly variant of the vector field visualization.
@@ -274,9 +286,14 @@ def plot_interactive(
 
     colorscale_gen = mpl_cmap_to_plotly_scale(cmap_gen)
     cmap_fit, _fit_norm, boundaries = build_fitness_quantile_colormap(
-        fitness_concat, n_bins=fitness_bins, cmap_name=cmap_fit.name if hasattr(cmap_fit, "name") else "plasma"
+        fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit
     )
     colorscale_fit = mpl_cmap_to_plotly_scale(cmap_fit)
+    bin_centers = [0.5 * (boundaries[i] + boundaries[i + 1]) for i in range(len(boundaries) - 1)]
+    bin_idx = np.digitize(fitness_concat, boundaries[1:-1], right=False)
+    bin_idx = np.clip(bin_idx, 0, fitness_bins - 1)
+    tick_vals = list(range(fitness_bins))
+    tick_text = [f"{v:.2f}" for v in bin_centers]
     colorscale_speed = mpl_cmap_to_plotly_scale(cmap_speed)
 
     speed_img = np.ma.filled(speed, np.nan)
@@ -299,8 +316,8 @@ def plot_interactive(
                 y=Yc[:, 0],
                 z=speed_img,
                 colorscale=colorscale_speed,
-                showscale=show_colorbar,
-                colorbar=dict(title="Velocity magnitude") if show_colorbar else None,
+                showscale=show_colorbar and show_speed_colorbar,
+                colorbar=dict(title="Velocity magnitude") if (show_colorbar and show_speed_colorbar) else None,
                 opacity=0.55,
                 zmin=speed_min,
                 zmax=speed_max,
@@ -339,8 +356,6 @@ def plot_interactive(
             np.stack([gen_labels, fitness_concat], axis=1) if len(fitness_concat) == len(gen_labels) else None
         )
         gen_min, gen_max = gen_labels.min(), gen_labels.max()
-        tick_positions = np.linspace(0, len(boundaries) - 2, 5, dtype=int)
-        tick_values = [0.5 * (boundaries[i] + boundaries[i + 1]) for i in tick_positions]
 
         fig.add_trace(
             go.Scattergl(
@@ -372,20 +387,20 @@ def plot_interactive(
                 mode="markers",
                 marker=dict(
                     size=6,
-                    color=fitness_concat,
+                    color=bin_idx,
                     colorscale=colorscale_fit,
                     colorbar=dict(
-                        title="Fitness (quantile bins)",
-                        tickvals=tick_values,
-                        ticktext=[f"{v:.2f}" for v in tick_values],
+                        title="Fitness",
+                        tickvals=tick_vals,
+                        ticktext=tick_text,
                     ),
-                    cmin=boundaries[0],
-                    cmax=boundaries[-1],
+                    cmin=0,
+                    cmax=fitness_bins - 1,
                     opacity=0.7,
                 ),
-                hovertemplate="Fitness %{marker.color:.3f}<br>Gen %{customdata[0]}<extra></extra>"
+                hovertemplate="Fitness bin %{marker.color}<br>Gen %{customdata[0]}<extra></extra>"
                 if customdata is not None
-                else "Fitness %{marker.color:.3f}<extra></extra>",
+                else "Fitness bin %{marker.color}<extra></extra>",
                 customdata=customdata,
             ),
             row=1,
