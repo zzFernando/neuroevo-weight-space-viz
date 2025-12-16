@@ -77,7 +77,9 @@ def get_discrete_cmap(name: str, n: int = 20):
 # -----------------------------------------------------------------------------
 # Quantile-based fitness colormap
 # -----------------------------------------------------------------------------
-def build_fitness_quantile_colormap(fitness_values: np.ndarray, n_bins: int = 9, cmap_name: str = "plasma"):
+def build_fitness_quantile_colormap(
+    fitness_values: np.ndarray, n_bins: int = 9, cmap_name_or_obj="plasma"
+):
     """
     Build a quantile-based discrete colormap for fitness values.
     """
@@ -93,7 +95,10 @@ def build_fitness_quantile_colormap(fitness_values: np.ndarray, n_bins: int = 9,
     boundaries[0] -= 1e-9
     boundaries[-1] += 1e-9
 
-    base_cmap = plt.get_cmap(cmap_name)
+    if isinstance(cmap_name_or_obj, mcolors.Colormap):
+        base_cmap = cmap_name_or_obj
+    else:
+        base_cmap = plt.get_cmap(cmap_name_or_obj)
     cmap = mcolors.ListedColormap(base_cmap(np.linspace(0, 1, n_bins)))
     norm = mcolors.BoundaryNorm(boundaries, cmap.N)
     return cmap, norm, boundaries

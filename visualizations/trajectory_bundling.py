@@ -110,6 +110,9 @@ def _prepare_bundled_data(
     curve_type: str,
     n_clusters: int,
     max_trajectories: int | None,
+    show_representatives_only: bool = False,
+    show_top_k: bool = False,
+    top_k: int | None = None,
 ):
     _, _, per_gen_embeddings = compute_aligned_umap_embedding(
         weights_by_gen, lambda_align=lambda_align, random_state=random_state
@@ -125,9 +128,9 @@ def _prepare_bundled_data(
     if n_traj == 0:
         raise ValueError("No individuals available to build trajectories.")
 
-    fitness_matrix_full = np.vstack([f[: min(len(f), n_traj * 2)] for f in fitness_by_gen])
-    mean_fit_full = fitness_matrix_full.mean(axis=0)
-    order = np.argsort(mean_fit_full)[::-1]
+    # Seleciona pela fitness final (última geração)
+    fitness_last = fitness_by_gen[-1]
+    order = np.argsort(fitness_last)[::-1]
     keep_idx = order[:n_traj]
 
     trajectories = np.stack([[per_gen_embeddings[g][i] for g in range(n_steps)] for i in keep_idx])
@@ -160,9 +163,34 @@ def _prepare_bundled_data(
         cluster_labels = kmeans.fit_predict(features)
 
     fitness_matrix = np.vstack([f[keep_idx] for f in fitness_by_gen])
-    traj_fitness = fitness_matrix.mean(axis=0)
+    traj_fitness_final = fitness_matrix[-1]  # fitness final por trajetória selecionada
 
-    return bundled_smooth, traj_fitness, cluster_labels
+    # Representatives: pick one trajectory per cluster (highest fitness in cluster)
+    if show_representatives_only and cluster_labels is not None:
+        reps = []
+        rep_labels = []
+        rep_fitness = []
+        for cl in np.unique(cluster_labels):
+            idx_in_cl = np.where(cluster_labels == cl)[0]
+            if len(idx_in_cl):
+                best_local = idx_in_cl[np.argmax(traj_fitness_final[idx_in_cl])]
+                reps.append(bundled_smooth[best_local])
+                rep_labels.append(cluster_labels[best_local])
+                rep_fitness.append(traj_fitness_final[best_local])
+        bundled_smooth = np.stack(reps) if reps else bundled_smooth
+        cluster_labels = np.array(rep_labels) if reps else cluster_labels
+        traj_fitness = np.array(rep_fitness) if reps else traj_fitness
+
+    # Optionally keep only top-k trajectories by fitness
+    if show_top_k and top_k:
+        top_k = min(top_k, len(traj_fitness))
+        order_top = np.argsort(traj_fitness)[::-1][:top_k]
+        bundled_smooth = bundled_smooth[order_top]
+        traj_fitness_final = traj_fitness_final[order_top]
+        if cluster_labels is not None:
+            cluster_labels = cluster_labels[order_top]
+
+    return bundled_smooth, traj_fitness_final, cluster_labels
 
 
 def plot(
@@ -185,11 +213,21 @@ def plot(
     max_trajectories: int | None = None,
     gamma: float = 0.3,
     fitness_bins: int = 9,
+    show_representatives_only: bool = False,
+    show_top_k: bool = False,
+    top_k: int | None = None,
+    color_clip_quantiles: tuple[float, float] = (0.05, 0.95),
+    colorbar_label: str = "Final fitness (higher is better)",
+    show_best: bool = True,
+    best_label: str = "Best trajectory (highest final fitness)",
+    color_lines_by_fitness: bool = False,
 ):
     """
     Plot bundled trajectories using aligned UMAP coordinates across generations.
     Includes clustering, adaptive transparency, and smoothing.
     """
+    show_best = show_best and highlight_best
+
     bundled_smooth, traj_fitness, cluster_labels = _prepare_bundled_data(
         weights_by_gen,
         fitness_by_gen,
@@ -203,50 +241,99 @@ def plot(
         curve_type,
         n_clusters,
         max_trajectories,
+        show_representatives_only,
+        show_top_k,
+        top_k,
     )
-    cmap, fit_norm, boundaries = build_fitness_quantile_colormap(
-        traj_fitness, n_bins=fitness_bins, cmap_name=cmap.name if hasattr(cmap, "name") else "plasma"
-    )
+    q_lo, q_hi = color_clip_quantiles
+    lo, hi = np.quantile(traj_fitness, [q_lo, q_hi]) if len(traj_fitness) else (0.0, 1.0)
+    if hi <= lo:
+        hi = lo + 1e-6
+    norm = mcolors.Normalize(vmin=lo, vmax=hi, clip=True)
 
     alphas = _density_alpha(bundled_smooth.reshape(-1, 2), base_alpha=line_alpha)
     alpha_min, alpha_max = alphas.min(), alphas.max()
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
     cmap_clusters = plt.cm.tab10
 
     for i, traj in enumerate(bundled_smooth):
         traj_alpha = np.linspace(alpha_max, alpha_min, len(traj))
-        color_val = cmap(fit_norm(traj_fitness[i])) if cluster_labels is None else cmap_clusters(cluster_labels[i] % cmap_clusters.N)
+        if color_lines_by_fitness:
+            color_val = cmap(norm(traj_fitness[i])) if cluster_labels is None else cmap_clusters(cluster_labels[i] % cmap_clusters.N)
+            lw = line_width
+            alpha_line = traj_alpha.mean()
+        else:
+            color_val = "#B0B0B0"
+            lw = max(line_width * 0.8, 0.6)
+            alpha_line = 0.2
         ax.plot(
             traj[:, 0],
             traj[:, 1],
             color=color_val,
-            alpha=traj_alpha.mean(),
-            linewidth=line_width,
+            alpha=alpha_line,
+            linewidth=lw,
         )
 
-    if highlight_best and len(traj_fitness):
+    if show_best and len(traj_fitness):
         best_idx = int(np.argmax(traj_fitness))
         ax.plot(
             bundled_smooth[best_idx, :, 0],
             bundled_smooth[best_idx, :, 1],
+            color="black",
+            linewidth=line_width + 2.0,
+            alpha=1.0,
+            label=best_label,
+        )
+        ax.scatter(
+            bundled_smooth[best_idx, 0, 0],
+            bundled_smooth[best_idx, 0, 1],
+            color="black",
+            edgecolors="white",
+            s=60,
+            zorder=5,
+            label="_start",
+        )
+        ax.scatter(
+            bundled_smooth[best_idx, -1, 0],
+            bundled_smooth[best_idx, -1, 1],
             color="white",
-            linewidth=2.6,
-            alpha=0.95,
-            label="Best trajectory",
+            edgecolors="black",
+            s=70,
+            marker="^",
+            zorder=6,
+            label="_end",
         )
         ax.legend(loc="upper right", frameon=False, fontsize=9)
 
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=fit_norm)
+    # Colorbar from endpoints (fitness final)
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, orientation="horizontal", pad=0.12, fraction=0.05)
-    cbar.set_label("Mean fitness along trajectory")
+    cbar = fig.colorbar(sm, ax=ax, orientation="horizontal", pad=0.18, fraction=0.08)
+    cbar.set_label(colorbar_label)
+    cbar.ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+
+    # Endpoints colored by final fitness
+    if len(bundled_smooth):
+        endpoints = bundled_smooth[:, -1, :]
+        sc = ax.scatter(
+            endpoints[:, 0],
+            endpoints[:, 1],
+            c=traj_fitness,
+            cmap=cmap,
+            norm=norm,
+            s=16,
+            alpha=0.9,
+            edgecolors="none",
+            zorder=4,
+        )
 
     ax.set_title("Trajectory Bundling", fontsize=13)
     ax.set_xlabel("UMAP-1")
     ax.set_ylabel("UMAP-2")
-    ax.grid(alpha=0.2, linestyle="--", linewidth=0.5)
-    fig.tight_layout()
+    ax.grid(alpha=0.15, linestyle="--", linewidth=0.4)
+    for spine in ax.spines.values():
+        spine.set_alpha(0.2)
     return fig
 
 
@@ -270,11 +357,21 @@ def plot_interactive(
     max_trajectories: int | None = None,
     gamma: float = 0.3,
     fitness_bins: int = 9,
+    show_representatives_only: bool = False,
+    show_top_k: bool = False,
+    top_k: int | None = None,
+    color_clip_quantiles: tuple[float, float] = (0.05, 0.95),
+    colorbar_label: str = "Final fitness (higher is better)",
+    show_best: bool = True,
+    best_label: str = "Best trajectory (highest final fitness)",
+    color_lines_by_fitness: bool = False,
 ):
     """
     Interactive Plotly variant of the trajectory bundling visualization.
     """
     _ = (norm_mode, gamma)  # kept for API compatibility with the static version
+    show_best = show_best and highlight_best
+
     bundled_smooth, traj_fitness, cluster_labels = _prepare_bundled_data(
         weights_by_gen,
         fitness_by_gen,
@@ -288,73 +385,100 @@ def plot_interactive(
         curve_type,
         n_clusters,
         max_trajectories,
+        show_representatives_only,
+        show_top_k,
+        top_k,
     )
 
-    cmap, fit_norm, boundaries = build_fitness_quantile_colormap(
-        traj_fitness, n_bins=fitness_bins, cmap_name=cmap.name if hasattr(cmap, "name") else "plasma"
-    )
+    q_lo, q_hi = color_clip_quantiles
+    lo, hi = np.quantile(traj_fitness, [q_lo, q_hi]) if len(traj_fitness) else (0.0, 1.0)
+    if hi <= lo:
+        hi = lo + 1e-6
     colorscale_fit = mpl_cmap_to_plotly_scale(cmap)
     cmap_clusters = plt.cm.tab10
 
     fig = go.Figure()
 
+    # Draw trajectories in gray (unless coloring is requested)
     for i, traj in enumerate(bundled_smooth):
-        if cluster_labels is None:
-            color_hex = mcolors.to_hex(cmap(fit_norm(traj_fitness[i])))
-        else:
-            color_hex = mcolors.to_hex(cmap_clusters(cluster_labels[i] % cmap_clusters.N))
-
         customdata = np.column_stack(
             [np.full(len(traj), i, dtype=int), np.full(len(traj), traj_fitness[i], dtype=float)]
+        )
+        line_color = (
+            mcolors.to_hex(cmap((traj_fitness[i] - lo) / (hi - lo)))
+            if color_lines_by_fitness and cluster_labels is None
+            else mcolors.to_hex(cmap_clusters(cluster_labels[i] % cmap_clusters.N))
+            if color_lines_by_fitness and cluster_labels is not None
+            else "#B0B0B0"
         )
         fig.add_trace(
             go.Scatter(
                 x=traj[:, 0],
                 y=traj[:, 1],
                 mode="lines",
-                line=dict(color=color_hex, width=line_width),
-                opacity=line_alpha,
-                hovertemplate="Trajectory %{customdata[0]}<br>Mean fitness %{customdata[1]:.3f}"
+                line=dict(color=line_color, width=line_width if color_lines_by_fitness else max(line_width * 0.8, 0.6)),
+                opacity=line_alpha if color_lines_by_fitness else 0.2,
+                hovertemplate="Trajectory %{customdata[0]}<br>Final fitness %{customdata[1]:.3f}"
                 "<br>x=%{x:.3f}, y=%{y:.3f}<extra></extra>",
                 customdata=customdata,
                 showlegend=False,
             )
         )
 
-    if highlight_best and len(traj_fitness):
+    # Color endpoints by final fitness
+    if len(bundled_smooth):
+        endpoints = bundled_smooth[:, -1, :]
+        fig.add_trace(
+            go.Scatter(
+                x=endpoints[:, 0],
+                y=endpoints[:, 1],
+                mode="markers",
+                marker=dict(
+                    size=16,
+                    color=traj_fitness,
+                    colorscale=colorscale_fit,
+                    cmin=lo,
+                    cmax=hi,
+                    colorbar=dict(title=colorbar_label),
+                    opacity=0.9,
+                    line=dict(width=0),
+                ),
+                hovertemplate="Final fitness %{marker.color:.3f}<extra></extra>",
+                showlegend=False,
+            )
+        )
+
+    if show_best and len(traj_fitness):
         best_idx = int(np.argmax(traj_fitness))
         fig.add_trace(
             go.Scatter(
                 x=bundled_smooth[best_idx, :, 0],
                 y=bundled_smooth[best_idx, :, 1],
                 mode="lines",
-                line=dict(color="white", width=line_width + 1.2),
-                opacity=0.95,
-                name="Best trajectory",
-                hovertemplate="Best trajectory<br>Mean fitness {:.3f}<extra></extra>".format(traj_fitness[best_idx]),
+                line=dict(color="black", width=line_width + 1.8),
+                opacity=1.0,
+                name=best_label,
+                hovertemplate=f"{best_label}<br>Fitness {traj_fitness[best_idx]:.3f}<extra></extra>",
                 showlegend=True,
             )
         )
-
-    # Dummy scatter for the fitness colorbar
-    fig.add_trace(
-        go.Scatter(
-            x=[None],
-            y=[None],
-            mode="markers",
-            marker=dict(
-                colorscale=colorscale_fit,
-                showscale=True,
-                cmin=boundaries[0],
-                cmax=boundaries[-1],
-                color=[boundaries[0], boundaries[-1]],
-                colorbar=dict(title="Mean fitness"),
-                size=0.1,
-            ),
-            hoverinfo="none",
-            showlegend=False,
+        fig.add_trace(
+            go.Scatter(
+                x=[bundled_smooth[best_idx, -1, 0]],
+                y=[bundled_smooth[best_idx, -1, 1]],
+                mode="markers",
+                marker=dict(
+                    size=18,
+                    color=traj_fitness[best_idx],
+                    colorscale=colorscale_fit,
+                    cmin=lo,
+                    cmax=hi,
+                    line=dict(color="white", width=1.2),
+                ),
+                hovertemplate=f"{best_label}<br>Final fitness {traj_fitness[best_idx]:.3f}<extra></extra>",
+                showlegend=False,
+            )
         )
-    )
 
     fig.update_xaxes(title="UMAP-1")
     fig.update_yaxes(title="UMAP-2")
@@ -362,6 +486,6 @@ def plot_interactive(
         title="Trajectory Bundling (interactive)",
         height=560,
         margin=dict(l=40, r=20, t=60, b=40),
-        showlegend=False if not highlight_best else True,
+        showlegend=show_best,
     )
     return fig
