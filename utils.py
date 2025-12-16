@@ -15,7 +15,6 @@ import umap
 from sklearn.datasets import make_moons
 from sklearn.preprocessing import StandardScaler
 
-# Silencia aviso do UMAP sobre n_jobs ser forçado para 1 quando random_state é definido.
 warnings.filterwarnings("ignore", message="n_jobs value 1 overridden to 1 by setting random_state")
 
 

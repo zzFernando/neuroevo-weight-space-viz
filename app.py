@@ -1,8 +1,5 @@
-# app.py
 import os
 
-# Evita o backend workqueue do numba (não thread-safe) forçando OMP.
-# Também removemos NUMBA_NUM_THREADS herdado do ambiente para evitar conflitos.
 os.environ.setdefault("NUMBA_THREADING_LAYER", "omp")
 os.environ.pop("NUMBA_NUM_THREADS", None)
 
@@ -132,9 +129,6 @@ st.title(t("title"))
 st.markdown(t("intro"))
 
 
-# -----------------------------------------------------------------------------
-# Sidebar controls (apenas parâmetros globais)
-# -----------------------------------------------------------------------------
 st.sidebar.header(t("sidebar_run_header"))
 pop_size = st.sidebar.slider(
     t("pop_size"),
@@ -203,9 +197,6 @@ if "run" not in st.session_state:
     st.stop()
 
 
-# -----------------------------------------------------------------------------
-# Cached execution
-# -----------------------------------------------------------------------------
 @st.cache_data(show_spinner=True)
 def cached_run(pop_size, n_generations, hidden_dim, mutation_rate, seed):
     return run_evolution(pop_size, n_generations, hidden_dim, mutation_rate, seed)
@@ -225,14 +216,10 @@ cmap_options = ["plasma", "inferno", "magma", "viridis", "cividis", "turbo", "fi
 
 tab_umap, tab_vector = st.tabs(t("tabs"))
 
-# Paletas fixas (mesmas cores usadas nos slides)
 CMAP_GEN = plt.cm.plasma
 CMAP_FIT_UMAP = get_discrete_cmap("cividis", n=20)
 CMAP_FIT_VEC = get_discrete_cmap("cividis", n=20)
 
-# -----------------------------------------------------------------------------
-# Tab: Aligned UMAP
-# -----------------------------------------------------------------------------
 with tab_umap:
     st.subheader(t("umap_sub"))
     st.markdown(t("umap_desc"))
@@ -273,9 +260,6 @@ with tab_umap:
     except Exception as exc:  # noqa: BLE001
         st.error(f"Error while generating Aligned UMAP: {exc}")
 
-# -----------------------------------------------------------------------------
-# Tab: Vector Field
-# -----------------------------------------------------------------------------
 with tab_vector:
     st.subheader(t("vector_sub"))
     st.markdown(t("vector_desc"))
