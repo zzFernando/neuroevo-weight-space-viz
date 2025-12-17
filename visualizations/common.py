@@ -64,7 +64,22 @@ class AdaptiveColorNorm:
 
 def get_discrete_cmap(name: str, n: int = 20):
     custom = {
-        "fitness_map": ["#0d0887", "#7e03a8", "#cb4679", "#f89441", "#f0f921"],
+        "fitness_map": [
+            "#0b0b0b",
+            "#191919",
+            "#262626",
+            "#333333",
+            "#4a4a4a",
+            "#626262",
+            "#7a7a7a",
+            "#949494",
+            "#aeaeae",
+            "#c8c8c8",
+            "#d8ffd1",
+            "#b0ff7a",
+            "#8cff2f",
+            "#6aff00",
+        ],
     }
     if name == "fitness_map":
         return mcolors.LinearSegmentedColormap.from_list("fitness_map", custom["fitness_map"], N=n)

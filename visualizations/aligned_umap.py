@@ -10,7 +10,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from utils import compute_aligned_umap_embedding
-from .common import AdaptiveColorNorm, build_fitness_quantile_colormap, mpl_cmap_to_plotly_scale, scatter_2d
+from .common import (
+    AdaptiveColorNorm,
+    build_fitness_quantile_colormap,
+    get_discrete_cmap,
+    mpl_cmap_to_plotly_scale,
+    scatter_2d,
+)
 
 
 def plot(
@@ -18,11 +24,11 @@ def plot(
     fitness_by_gen: Sequence[np.ndarray],
     lambda_align: float = 0.3,
     random_state: int = 42,
-    cmap_gen=plt.cm.plasma,
-    cmap_fit=plt.cm.cividis,
+    cmap_gen=plt.cm.turbo,
+    cmap_fit=None,
     norm_mode: str = "power",
     gamma: float = 0.3,
-    fitness_bins: int = 9,
+    fitness_bins: int = 31,
 ):
     """
     Plot aligned UMAP projections for all generations with two panels:
@@ -37,7 +43,11 @@ def plot(
         raise ValueError("fitness_by_gen and weights_by_gen must have the same length.")
 
     fitness_concat = np.concatenate(fitness_by_gen) if fitness_by_gen else np.array([])
-    cmap_fit, fit_norm, boundaries = build_fitness_quantile_colormap(fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit)
+    if cmap_fit is None:
+        cmap_fit = get_discrete_cmap("fitness_map", n=24)
+    cmap_fit, fit_norm, boundaries = build_fitness_quantile_colormap(
+        fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit
+    )
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharex=True, sharey=True)
 
@@ -73,11 +83,11 @@ def plot_interactive(
     fitness_by_gen: Sequence[np.ndarray],
     lambda_align: float = 0.3,
     random_state: int = 42,
-    cmap_gen=plt.cm.plasma,
-    cmap_fit=plt.cm.cividis,
+    cmap_gen=plt.cm.turbo,
+    cmap_fit=None,
     norm_mode: str = "power",
     gamma: float = 0.3,
-    fitness_bins: int = 9,
+    fitness_bins: int = 31,
 ):
     """
     Interactive Plotly version of the aligned UMAP scatter plots.
@@ -126,6 +136,8 @@ def plot_interactive(
             col=1,
         )
 
+        if cmap_fit is None:
+            cmap_fit = get_discrete_cmap("fitness_map", n=24)
         cmap_fit, _fit_norm, boundaries = build_fitness_quantile_colormap(
             fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit
         )

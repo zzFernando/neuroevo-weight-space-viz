@@ -134,7 +134,7 @@ pop_size = st.sidebar.slider(
     t("pop_size"),
     20,
     400,
-    120,
+    20,
     step=20,
     help=t("pop_size_help"),
 )
@@ -142,7 +142,7 @@ n_generations = st.sidebar.slider(
     t("n_generations"),
     5,
     80,
-    25,
+    80,
     step=1,
     help=t("n_generations_help"),
 )
@@ -150,7 +150,7 @@ hidden_dim = st.sidebar.slider(
     t("hidden_dim"),
     4,
     128,
-    32,
+    128,
     step=4,
     help=t("hidden_dim_help"),
 )
@@ -158,7 +158,7 @@ mutation_rate = st.sidebar.slider(
     t("mutation_rate"),
     0.005,
     0.2,
-    0.05,
+    0.11,
     step=0.005,
     help=t("mutation_rate_help"),
 )
@@ -175,7 +175,7 @@ lambda_align = st.sidebar.slider(
     t("lambda_align"),
     0.0,
     1.0,
-    0.3,
+    0.8,
     step=0.05,
     help=t("lambda_align_help"),
 )
@@ -193,8 +193,7 @@ if st.sidebar.button(t("run_button")):
 st.sidebar.caption(t("run_caption"))
 
 if "run" not in st.session_state:
-    st.info(t("run_info"))
-    st.stop()
+    st.session_state["run"] = True
 
 
 @st.cache_data(show_spinner=True)
@@ -207,7 +206,23 @@ def cached_alignment(weights_by_gen, lambda_align, seed):
     return compute_aligned_umap_embedding(weights_by_gen, lambda_align=lambda_align, random_state=seed)
 
 
-evolution = cached_run(pop_size, n_generations, hidden_dim, mutation_rate, seed)
+def get_evolution(pop_size, n_generations, hidden_dim, mutation_rate, seed):
+    params = {
+        "pop_size": pop_size,
+        "n_generations": n_generations,
+        "hidden_dim": hidden_dim,
+        "mutation_rate": mutation_rate,
+        "seed": seed,
+    }
+    cache = st.session_state.get("evo_cache")
+    if cache and cache.get("params") == params:
+        return cache["result"]
+    result = cached_run(pop_size, n_generations, hidden_dim, mutation_rate, seed)
+    st.session_state["evo_cache"] = {"params": params, "result": result}
+    return result
+
+
+evolution = get_evolution(pop_size, n_generations, hidden_dim, mutation_rate, seed)
 embedding_all, gen_labels, per_gen_embeddings = cached_alignment(
     evolution.weights_by_gen, lambda_align, seed
 )
@@ -216,9 +231,9 @@ cmap_options = ["plasma", "inferno", "magma", "viridis", "cividis", "turbo", "fi
 
 tab_umap, tab_vector = st.tabs(t("tabs"))
 
-CMAP_GEN = plt.cm.plasma
-CMAP_FIT_UMAP = get_discrete_cmap("cividis", n=20)
-CMAP_FIT_VEC = get_discrete_cmap("cividis", n=20)
+CMAP_GEN = plt.cm.turbo
+CMAP_FIT_UMAP = get_discrete_cmap("fitness_map", n=48)
+CMAP_FIT_VEC = get_discrete_cmap("fitness_map", n=48)
 
 with tab_umap:
     st.subheader(t("umap_sub"))
@@ -226,7 +241,7 @@ with tab_umap:
     st.caption(t("umap_caption"))
     norm_mode_umap = "power"
     gamma_umap = 0.3
-    fitness_bins_umap = 9
+    fitness_bins_umap = 31
 
     try:
         gen_cmap = CMAP_GEN
@@ -264,13 +279,15 @@ with tab_vector:
     st.subheader(t("vector_sub"))
     st.markdown(t("vector_desc"))
     st.caption(t("vector_caption"))
-    grid_res = 22
+    grid_res = 30
     smoothing_sigma = 1.0
     subsample = 1
     vector_mode = "stream"
     show_points = True
     normalize_vectors = False
     quantize_bins = 0
+    fill_empty_cells = True
+    min_vectors_per_cell = 1
 
     try:
         gen_cmap = CMAP_GEN
@@ -288,11 +305,13 @@ with tab_vector:
                 subsample=subsample,
                 vector_mode=vector_mode,
                 quantize_bins=quantize_bins if quantize_bins > 0 else None,
+                fill_empty_cells=fill_empty_cells,
+                min_vectors_per_cell=min_vectors_per_cell,
                 cmap_gen=gen_cmap,
                 cmap_fit=fitness_cmap,
                 norm_mode="power",
                 gamma=0.3,
-                fitness_bins=9,
+                fitness_bins=31,
             )
             st.plotly_chart(fig, width="stretch")
         else:
@@ -308,11 +327,13 @@ with tab_vector:
                 subsample=subsample,
                 vector_mode=vector_mode,
                 quantize_bins=quantize_bins if quantize_bins > 0 else None,
+                fill_empty_cells=fill_empty_cells,
+                min_vectors_per_cell=min_vectors_per_cell,
                 cmap_gen=gen_cmap,
                 cmap_fit=fitness_cmap,
                 norm_mode="power",
                 gamma=0.3,
-                fitness_bins=9,
+                fitness_bins=31,
             )
             st.pyplot(fig, clear_figure=True)
     except Exception as exc:  # noqa: BLE001

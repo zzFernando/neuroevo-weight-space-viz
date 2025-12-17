@@ -5,6 +5,7 @@ preparing aligned embeddings used by the visualizations.
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
@@ -36,23 +37,27 @@ class NeuroEvoMoons:
 
     def __init__(
         self,
-        pop_size: int = 80,
+        pop_size: int = 200,
         input_dim: int = 2,
         hidden_dim: int = 16,
         output_dim: int = 1,
         mutation_rate: float = 0.05,
         seed: int = 42,
     ) -> None:
+        random.seed(seed)
+        np.random.seed(seed)
         self.rng = np.random.default_rng(seed)
         self.pop_size = pop_size
         self.mutation_rate = mutation_rate
+        self.weight_init_mean = 0.0
+        self.weight_init_std = 0.5
 
         self.shapes = [
             (input_dim, hidden_dim),
             (hidden_dim, output_dim),
         ]
 
-        X, y = make_moons(n_samples=400, noise=0.25, random_state=seed)
+        X, y = make_moons(n_samples=1000, noise=0.25, random_state=seed)
         self.scaler = StandardScaler().fit(X)
         self.X = self.scaler.transform(X)
         self.y = y.reshape(-1, 1)
@@ -61,7 +66,7 @@ class NeuroEvoMoons:
 
     # ---- Representation helpers -------------------------------------------------
     def random_individual(self) -> List[np.ndarray]:
-        return [self.rng.normal(0, 0.5, size=s) for s in self.shapes]
+        return [self.rng.normal(self.weight_init_mean, self.weight_init_std, size=s) for s in self.shapes]
 
     def flatten(self, individual: Sequence[np.ndarray]) -> np.ndarray:
         return np.concatenate([w.ravel() for w in individual])
@@ -83,10 +88,10 @@ class NeuroEvoMoons:
     def mutate(self, individual: Sequence[np.ndarray]) -> List[np.ndarray]:
         return [w + self.rng.normal(0, self.mutation_rate, size=w.shape) for w in individual]
 
-    def evolve_one_generation(self, elite_frac: float = 0.2) -> Tuple[np.ndarray, float]:
+    def evolve_one_generation(self, elite_frac: float = 0.2, min_elite: int = 2) -> Tuple[np.ndarray, float]:
         fitness = np.array([self.evaluate(ind) for ind in self.population])
 
-        n_elite = max(2, int(self.pop_size * elite_frac))
+        n_elite = max(min_elite, int(self.pop_size * elite_frac))
         elite_idx = np.argsort(fitness)[-n_elite:]
         elites = [self.population[i] for i in elite_idx]
 
@@ -104,11 +109,13 @@ class NeuroEvoMoons:
 
 
 def run_evolution(
-    pop_size: int,
-    n_generations: int,
-    hidden_dim: int,
-    mutation_rate: float,
-    seed: int,
+    pop_size: int = 200,
+    n_generations: int = 50,
+    hidden_dim: int = 16,
+    mutation_rate: float = 0.05,
+    seed: int = 42,
+    elite_frac: float = 0.2,
+    min_elite: int = 2,
 ) -> EvolutionResult:
     """
     Run neuroevolution and collect flattened weights/fitness per generation.
@@ -136,7 +143,7 @@ def run_evolution(
 
     # Subsequent generations
     for _ in range(1, n_generations):
-        best_idx, _ = ne.evolve_one_generation()
+        best_idx, _ = ne.evolve_one_generation(elite_frac=elite_frac, min_elite=min_elite)
         fitness = np.array([ne.evaluate(ind) for ind in ne.population])
 
         weights_by_gen.append(np.stack([ne.flatten(ind) for ind in ne.population]))
@@ -158,8 +165,8 @@ def compute_aligned_umap_embedding(
     weights_by_gen: Sequence[np.ndarray],
     lambda_align: float = 0.3,
     random_state: int = 42,
-    n_neighbors: int = 30,
-    min_dist: float = 0.05,
+    n_neighbors: int = 15,
+    min_dist: float = 0.1,
 ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
     """
     Compute per-generation UMAP projections and apply a simple temporal alignment.

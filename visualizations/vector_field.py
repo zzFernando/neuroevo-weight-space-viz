@@ -11,10 +11,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from utils import compute_aligned_umap_embedding
-from .common import build_fitness_quantile_colormap, mpl_cmap_to_plotly_scale, scatter_2d
+from .common import build_fitness_quantile_colormap, get_discrete_cmap, mpl_cmap_to_plotly_scale, scatter_2d
 
 
-def _compute_velocity_grid(per_gen_embeddings: Sequence[np.ndarray], grid_res: int):
+def _compute_velocity_grid(per_gen_embeddings: Sequence[np.ndarray], grid_res: int, min_vectors_per_cell: int):
     if len(per_gen_embeddings) < 2:
         raise ValueError("At least two generations are required to compute a vector field.")
 
@@ -48,7 +48,7 @@ def _compute_velocity_grid(per_gen_embeddings: Sequence[np.ndarray], grid_res: i
                 V[iy, ix] += vel[1]
                 count[iy, ix] += 1
 
-    mask = count == 0
+    mask = count < min_vectors_per_cell
     U_mean = np.zeros_like(U)
     V_mean = np.zeros_like(V)
     U_mean[~mask] = U[~mask] / count[~mask]
@@ -92,8 +92,28 @@ def _gaussian_smooth(mat: np.ma.MaskedArray, sigma: float) -> np.ma.MaskedArray:
     return np.ma.array(out, mask=mat.mask)
 
 
+def _gaussian_smooth_dense(mat: np.ndarray, sigma: float) -> np.ndarray:
+    """
+    Gaussian smooth for dense arrays (no mask), used when preenchendo células vazias.
+    """
+    if sigma <= 0:
+        return mat
+    kernel = _gaussian_kernel(sigma)
+    pad = kernel.shape[0] // 2
+    padded = np.pad(mat, pad, mode="edge")
+    out = np.zeros_like(mat)
+    for i in range(out.shape[0]):
+        for j in range(out.shape[1]):
+            window = padded[i : i + kernel.shape[0], j : j + kernel.shape[1]]
+            out[i, j] = np.sum(window * kernel)
+    return out
+
+
 def _draw_vectors(ax, X, Y, U, V, speed, mode: str, cmap):
+    neutral_color = (0, 0, 0, 0.5)
     if mode == "quiver":
+        if cmap is None:
+            return ax.quiver(X, Y, U, V, color=neutral_color, scale=38, width=0.0045, zorder=3)
         return ax.quiver(X, Y, U, V, speed, cmap=cmap, scale=40, width=0.004)
     return ax.streamplot(
         X,
@@ -101,9 +121,11 @@ def _draw_vectors(ax, X, Y, U, V, speed, mode: str, cmap):
         U,
         V,
         density=1.2,
-        color=speed,
+        color=neutral_color if cmap is None else speed,
         cmap=cmap,
-        linewidth=1.3,
+        linewidth=1.4 if cmap is None else 1.3,
+        arrowsize=1.6 if cmap is None else 1.3,
+        zorder=3,
     )
 
 
@@ -112,32 +134,50 @@ def _prepare_field_data(
     fitness_by_gen: Sequence[np.ndarray],
     lambda_align: float,
     grid_res: int,
+    min_vectors_per_cell: int,
     random_state: int,
     normalize_vectors: bool,
     smoothing_sigma: float,
     subsample: int,
     quantize_bins: int | None,
+    fill_empty_cells: bool,
 ):
     embedding, gen_labels, per_gen_embeddings = compute_aligned_umap_embedding(
         weights_by_gen, lambda_align=lambda_align, random_state=random_state
     )
-    Xc, Yc, U, V, speed = _compute_velocity_grid(per_gen_embeddings, grid_res=grid_res)
+    Xc, Yc, U, V, speed = _compute_velocity_grid(
+        per_gen_embeddings, grid_res=grid_res, min_vectors_per_cell=min_vectors_per_cell
+    )
 
     if normalize_vectors:
         mag = _masked_speed(U, V)
         U = np.ma.array(np.where(mag > 0, U / mag, 0), mask=U.mask)
         V = np.ma.array(np.where(mag > 0, V / mag, 0), mask=V.mask)
+
+    masked_field = isinstance(U, np.ma.MaskedArray)
+    if fill_empty_cells:
+        U = np.array(np.ma.filled(U, 0.0))
+        V = np.array(np.ma.filled(V, 0.0))
+        masked_field = False
+
     if smoothing_sigma > 0:
-        U = _gaussian_smooth(U, sigma=smoothing_sigma)
-        V = _gaussian_smooth(V, sigma=smoothing_sigma)
-        speed = _masked_speed(U, V)
+        if masked_field:
+            U = _gaussian_smooth(U, sigma=smoothing_sigma)
+            V = _gaussian_smooth(V, sigma=smoothing_sigma)
+        else:
+            U = _gaussian_smooth_dense(U, sigma=smoothing_sigma)
+            V = _gaussian_smooth_dense(V, sigma=smoothing_sigma)
 
     if subsample > 1:
         U = U[::subsample, ::subsample]
         V = V[::subsample, ::subsample]
         Xc = Xc[::subsample, ::subsample]
         Yc = Yc[::subsample, ::subsample]
+
+    if masked_field:
         speed = _masked_speed(U, V)
+    else:
+        speed = np.sqrt(U ** 2 + V ** 2)
 
     if quantize_bins and quantize_bins > 1:
         quantized = np.linspace(speed.min(), speed.max(), quantize_bins)
@@ -151,7 +191,8 @@ def plot(
     weights_by_gen: Sequence[np.ndarray],
     fitness_by_gen: Sequence[np.ndarray],
     lambda_align: float = 0.3,
-    grid_res: int = 20,
+    grid_res: int = 30,
+    min_vectors_per_cell: int = 1,
     random_state: int = 42,
     show_points: bool = True,
     normalize_vectors: bool = False,
@@ -159,13 +200,14 @@ def plot(
     subsample: int = 1,
     vector_mode: str = "stream",  # stream or quiver
     quantize_bins: int | None = None,
-    cmap_gen=plt.cm.plasma,
-    cmap_fit=plt.cm.cividis,
-    cmap_speed=plt.cm.magma,
+    cmap_gen=plt.cm.turbo,
+    cmap_fit=None,
+    cmap_speed=None,
     norm_mode: str = "power",
     gamma: float = 0.3,
-    fitness_bins: int = 9,
+    fitness_bins: int = 31,
     show_speed_colorbar: bool = False,
+    fill_empty_cells: bool = True,
 ):
     """
     Plot streamlines of the average displacement field between consecutive
@@ -187,12 +229,16 @@ def plot(
         fitness_by_gen,
         lambda_align,
         grid_res,
+        min_vectors_per_cell,
         random_state,
         normalize_vectors,
         smoothing_sigma,
         subsample,
         quantize_bins,
+        fill_empty_cells,
     )
+    if cmap_fit is None:
+        cmap_fit = get_discrete_cmap("fitness_map", n=24)
     cmap_fit, fit_norm, boundaries = build_fitness_quantile_colormap(
         fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit
     )
@@ -207,7 +253,8 @@ def plot(
         cbar_gen = fig.colorbar(sc_gen, ax=ax, orientation="horizontal", pad=0.12, fraction=0.05)
         cbar_gen.set_label("Generation index")
 
-    strm_left = _draw_vectors(ax, Xc, Yc, U, V, speed, mode=vector_mode, cmap=cmap_speed)
+    cmap_lines = None if cmap_speed is None else cmap_speed
+    strm_left = _draw_vectors(ax, Xc, Yc, U, V, speed, mode=vector_mode, cmap=cmap_lines)
     ax.set_title("Vector Field — Generation", fontsize=13)
     ax.set_xlabel("UMAP-1")
     ax.set_ylabel("UMAP-2")
@@ -224,7 +271,7 @@ def plot(
         cbar_fit.set_ticks(tick_values)
         cbar_fit.ax.set_xticklabels([f"{v:.2f}" for v in tick_values])
 
-    strm_right = _draw_vectors(ax, Xc, Yc, U, V, speed, mode=vector_mode, cmap=cmap_speed)
+    strm_right = _draw_vectors(ax, Xc, Yc, U, V, speed, mode=vector_mode, cmap=cmap_lines)
     ax.set_title("Vector Field — Fitness", fontsize=13)
     ax.set_xlabel("UMAP-1")
     ax.set_ylabel("UMAP-2")
@@ -243,7 +290,8 @@ def plot_interactive(
     weights_by_gen: Sequence[np.ndarray],
     fitness_by_gen: Sequence[np.ndarray],
     lambda_align: float = 0.3,
-    grid_res: int = 20,
+    grid_res: int = 30,
+    min_vectors_per_cell: int = 1,
     random_state: int = 42,
     show_points: bool = True,
     normalize_vectors: bool = False,
@@ -251,13 +299,14 @@ def plot_interactive(
     subsample: int = 1,
     vector_mode: str = "stream",  # kept for API parity, arrows are quiver-like here
     quantize_bins: int | None = None,
-    cmap_gen=plt.cm.plasma,
-    cmap_fit=plt.cm.cividis,
-    cmap_speed=plt.cm.magma,
+    cmap_gen=plt.cm.turbo,
+    cmap_fit=None,
+    cmap_speed=None,
     norm_mode: str = "power",
     gamma: float = 0.3,
-    fitness_bins: int = 9,
+    fitness_bins: int = 31,
     show_speed_colorbar: bool = False,
+    fill_empty_cells: bool = True,
 ):
     """
     Interactive Plotly variant of the vector field visualization.
@@ -277,14 +326,18 @@ def plot_interactive(
         fitness_by_gen,
         lambda_align,
         grid_res,
+        min_vectors_per_cell,
         random_state,
         normalize_vectors,
         smoothing_sigma,
         subsample,
         quantize_bins,
+        fill_empty_cells,
     )
 
     colorscale_gen = mpl_cmap_to_plotly_scale(cmap_gen)
+    if cmap_fit is None:
+        cmap_fit = get_discrete_cmap("fitness_map", n=24)
     cmap_fit, _fit_norm, boundaries = build_fitness_quantile_colormap(
         fitness_concat, n_bins=fitness_bins, cmap_name_or_obj=cmap_fit
     )

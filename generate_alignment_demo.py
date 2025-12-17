@@ -10,7 +10,7 @@ import numpy as np
 from utils import compute_aligned_umap_embedding, run_evolution
 
 
-def compute_unaligned_umap(weights_by_gen, random_state: int = 42, n_neighbors: int = 30, min_dist: float = 0.05):
+def compute_unaligned_umap(weights_by_gen, random_state: int = 42, n_neighbors: int = 15, min_dist: float = 0.1):
     """
     Compute per-generation UMAP projections without temporal alignment (lambda=0).
     """
@@ -26,9 +26,9 @@ def compute_unaligned_umap(weights_by_gen, random_state: int = 42, n_neighbors: 
 def main():
     plt.rcParams.update({"figure.dpi": 150})
 
-    pop_size = 120
-    n_generations = 25
-    hidden_dim = 32
+    pop_size = 200
+    n_generations = 50
+    hidden_dim = 16
     mutation_rate = 0.05
     seed = 42
 
@@ -42,7 +42,7 @@ def main():
         evo.weights_by_gen, lambda_align=0.3, random_state=seed
     )
 
-    cmap = plt.cm.plasma
+    cmap = plt.cm.turbo
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=False, sharey=False)
 
     for ax, emb, gens, title in [

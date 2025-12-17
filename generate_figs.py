@@ -21,9 +21,9 @@ def save_fig(fig, name: str) -> None:
 def main() -> None:
     plt.rcParams.update({"figure.dpi": 150})
 
-    pop_size = 120
-    n_generations = 25
-    hidden_dim = 32
+    pop_size = 200
+    n_generations = 50
+    hidden_dim = 16
     mutation_rate = 0.05
     seed = 42
     lambda_align = 0.3
@@ -42,7 +42,7 @@ def main() -> None:
         evo.fitness_by_gen,
         lambda_align=lambda_align,
         random_state=seed,
-        fitness_bins=9,
+        fitness_bins=31,
     )
     save_fig(fig, "aligned_umap.png")
 
@@ -51,15 +51,17 @@ def main() -> None:
         evo.weights_by_gen,
         evo.fitness_by_gen,
         lambda_align=lambda_align,
-        grid_res=22,
+        grid_res=30,
+        min_vectors_per_cell=1,
         random_state=seed,
         show_points=True,
         smoothing_sigma=1.0,
         subsample=1,
         vector_mode="stream",
         quantize_bins=None,
-        fitness_bins=9,
+        fitness_bins=31,
         show_speed_colorbar=False,
+        fill_empty_cells=True,
     )
     save_fig(fig, "vector_field.png")
 
