@@ -347,7 +347,8 @@ def plot_interactive(
     bin_idx = np.clip(bin_idx, 0, fitness_bins - 1)
     tick_vals = list(range(fitness_bins))
     tick_text = [f"{v:.2f}" for v in bin_centers]
-    colorscale_speed = mpl_cmap_to_plotly_scale(cmap_speed)
+    speed_cmap = plt.cm.inferno if cmap_speed is None else cmap_speed
+    colorscale_speed = mpl_cmap_to_plotly_scale(speed_cmap)
 
     speed_img = np.ma.filled(speed, np.nan)
     speed_min = float(np.nanmin(speed_img)) if np.any(~np.isnan(speed_img)) else 0.0
