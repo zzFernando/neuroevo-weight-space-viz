@@ -13,23 +13,32 @@ Project layout:
 - `app.py` - Streamlit UI and orchestration.
 - `utils.py` - neuroevolution loop plus aligned UMAP helper.
 - `visualizations/` - `aligned_umap.py`, `vector_field.py`, `trajectory_bundling.py`, and common plotting helpers.
-- `requirements.txt` - Python dependencies.
+- `pixi.toml` - environment and task definitions (managed by [pixi](https://pixi.sh)).
 - Reference paper (PDF in repo) for the original methodology.
 
 ## Install
-Tested with Python 3.10-3.11.
+Requires [pixi](https://pixi.sh/latest/#installation). Tested with Python 3.11.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # or .venv\\Scripts\\activate on Windows
-pip install -r requirements.txt
+pixi install
 ```
 
 ## Run
 ```bash
-streamlit run app.py
+pixi run app
+```
+Or equivalently:
+```bash
+pixi run streamlit run app.py
 ```
 Click **Run / Refresh** in the sidebar after adjusting parameters; evolution and alignment are cached for faster iteration.
+
+## Available tasks
+| Task | Command | Description |
+|------|---------|-------------|
+| `app` | `pixi run app` | Launch the Streamlit app |
+| `figs` | `pixi run figs` | Generate static figures |
+| `alignment-demo` | `pixi run alignment-demo` | Run alignment demo script |
 
 ## Controls at a glance
 - **Neuroevolution:** population size, generations, hidden neurons, mutation rate, seed.
@@ -40,16 +49,6 @@ Click **Run / Refresh** in the sidebar after adjusting parameters; evolution and
 
 ## Notes
 - Neighbor radius from the UI is scaled by the embedding diameter before bundling.
-- Dependencies are pinned to keep numpy < 2.0 and a matching numba/llvmlite pair, which avoids clashing with common global installs (for example statsmodels or manim). Use a fresh virtualenv to prevent pip from touching unrelated packages.
+- Dependencies are pinned to keep numpy < 2.0 and a matching numba/llvmlite pair; pixi handles isolation automatically so no venv management is needed.
 - Numba threading is forced to `omp` to avoid the non-threadsafe `workqueue` backend that can crash under Streamlit reruns. Remove any `NUMBA_NUM_THREADS` env var if set.
 - Plotly é usado nas versões interativas; Matplotlib permanece como opção estática.
-
-## Troubleshooting installs
-- If pip reports conflicts for packages you do not use here (for example embedchain, manim, crewai, langchain), it means you are installing into an environment shared with other projects. Activate a fresh venv before installing:
-  ```bash
-  python -m venv .venv
-  source .venv/bin/activate
-  pip install --upgrade pip
-  pip install -r requirements.txt
-  ```
-- If you must stay in a shared environment, upgrade the conflicting packages so their constraints are met (e.g., `python-dotenv>=1.0,<2`, `manimpango>=0.5,<1`, and compatible langchain versions).
