@@ -7,12 +7,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-from utils import compute_aligned_umap_embedding, run_evolution
+from datasets import DATASETS
+from utils import compute_aligned_umap_embedding, run_evolution_dataset
 from visualizations.aligned_umap import plot as plot_aligned_umap
 from visualizations.aligned_umap import plot_interactive as plot_aligned_umap_interactive
 from visualizations.common import get_discrete_cmap
 from visualizations.vector_field import plot as plot_vector_field
 from visualizations.vector_field import plot_interactive as plot_vector_field_interactive
+from visualizations.vector_field_improved import plot_improved_vector_field
 
 
 st.set_page_config(page_title="Neuroevo Weight-Space Viz", layout="wide")
@@ -26,6 +28,9 @@ TEXTS = {
             "Ferramenta para visualizar como uma população de redes neurais evolui no espaço de pesos, "
             "usando projeções alinhadas, campos vetoriais e agrupamento de trajetórias."
         ),
+        "dataset_header": "Dataset",
+        "dataset_label": "Conjunto de dados",
+        "dataset_help": "Define a tarefa de otimização da neuroevolução.",
         "sidebar_run_header": "Execução / Evolução",
         "pop_size": "Tamanho da população",
         "pop_size_help": "Número de indivíduos (redes) por geração.",
@@ -47,7 +52,7 @@ TEXTS = {
         "run_button": "Executar / Atualizar",
         "run_caption": "Use os controles globais e clique para gerar as visualizações.",
         "run_info": "Defina os parâmetros e clique em **Executar / Atualizar**.",
-        "tabs": ["Aligned UMAP", "Vector Field"],
+        "tabs": ["Aligned UMAP", "Vector Field", "Advanced"],
         "umap_sub": "Aligned UMAP",
         "umap_desc": (
             "Mostra uma projeção 2D dos pesos por geração, com alinhamento temporal para reduzir saltos visuais. "
@@ -62,6 +67,13 @@ TEXTS = {
             "Importa para identificar fluxos dominantes no espaço de pesos."
         ),
         "vector_caption": "Campo vetorial médio entre gerações; pontos coloridos por geração e fitness.",
+        "advanced_sub": "Advanced — 2×2 Analysis",
+        "advanced_desc": (
+            "Layout 2×2 publication-ready: scatter por fitness, streamlines de fluxo contínuo, "
+            "densidade KDE ponderada pelo tempo e divergência do campo (exploração vs. explotação). "
+            "Auto-crop remove regiões vazias; subsample adaptativo reduz sobreposição em regiões densas."
+        ),
+        "advanced_caption": "Análise completa do campo vetorial — use para publicação ou exploração detalhada.",
         "quick_notes": "",
     },
     "en": {
@@ -72,6 +84,9 @@ TEXTS = {
             "Tool to visualize how a population of neural networks evolves in weight space, "
             "using aligned projections, vector fields, and bundled trajectories."
         ),
+        "dataset_header": "Dataset",
+        "dataset_label": "Dataset",
+        "dataset_help": "Defines the neuroevolution optimization task.",
         "sidebar_run_header": "Run / Evolution",
         "pop_size": "Population size",
         "pop_size_help": "Number of individuals (networks) per generation.",
@@ -93,7 +108,7 @@ TEXTS = {
         "run_button": "Run / Refresh",
         "run_caption": "Set the global controls and click to render the visualizations.",
         "run_info": "Choose parameters and click **Run / Refresh**.",
-        "tabs": ["Aligned UMAP", "Vector Field"],
+        "tabs": ["Aligned UMAP", "Vector Field", "Advanced"],
         "umap_sub": "Aligned UMAP",
         "umap_desc": (
             "Shows a 2D projection of weights per generation with temporal alignment to reduce visual jumps. "
@@ -108,6 +123,13 @@ TEXTS = {
             "Useful to spot dominant flows in weight space."
         ),
         "vector_caption": "Average vector field between generations; points colored by generation and fitness.",
+        "advanced_sub": "Advanced — 2×2 Analysis",
+        "advanced_desc": (
+            "Publication-ready 2×2 layout: fitness scatter, continuous streamlines, "
+            "time-weighted KDE density, and field divergence (exploration vs exploitation). "
+            "Auto-crop removes empty regions; adaptive subsampling reduces overlap in dense areas."
+        ),
+        "advanced_caption": "Full vector field analysis — suitable for publication or detailed inspection.",
         "quick_notes": "",
     },
 }
@@ -129,14 +151,26 @@ st.title(t("title"))
 st.markdown(t("intro"))
 
 
+st.sidebar.header(t("dataset_header"))
+dataset_name = st.sidebar.selectbox(
+    t("dataset_label"),
+    options=list(DATASETS.keys()),
+    format_func=lambda k: DATASETS[k]["label"][language],
+    help=t("dataset_help"),
+    key="dataset_name",
+)
+_ds = DATASETS[dataset_name]
+st.sidebar.caption(_ds["desc"][language])
+
 st.sidebar.header(t("sidebar_run_header"))
 pop_size = st.sidebar.slider(
     t("pop_size"),
-    20,
-    400,
-    20,
-    step=20,
+    10,
+    200,
+    _ds["default_pop"],
+    step=10,
     help=t("pop_size_help"),
+    key=f"{dataset_name}_pop_size",
 )
 n_generations = st.sidebar.slider(
     t("n_generations"),
@@ -145,14 +179,16 @@ n_generations = st.sidebar.slider(
     80,
     step=1,
     help=t("n_generations_help"),
+    key=f"{dataset_name}_n_gen",
 )
 hidden_dim = st.sidebar.slider(
     t("hidden_dim"),
     4,
     128,
-    128,
+    _ds["default_hidden"],
     step=4,
     help=t("hidden_dim_help"),
+    key=f"{dataset_name}_hidden",
 )
 mutation_rate = st.sidebar.slider(
     t("mutation_rate"),
@@ -197,8 +233,8 @@ if "run" not in st.session_state:
 
 
 @st.cache_data(show_spinner=True)
-def cached_run(pop_size, n_generations, hidden_dim, mutation_rate, seed):
-    return run_evolution(pop_size, n_generations, hidden_dim, mutation_rate, seed)
+def cached_run(dataset_name, pop_size, n_generations, hidden_dim, mutation_rate, seed):
+    return run_evolution_dataset(dataset_name, pop_size, n_generations, hidden_dim, mutation_rate, seed)
 
 
 @st.cache_data(show_spinner=False)
@@ -206,8 +242,9 @@ def cached_alignment(weights_by_gen, lambda_align, seed):
     return compute_aligned_umap_embedding(weights_by_gen, lambda_align=lambda_align, random_state=seed)
 
 
-def get_evolution(pop_size, n_generations, hidden_dim, mutation_rate, seed):
+def get_evolution(dataset_name, pop_size, n_generations, hidden_dim, mutation_rate, seed):
     params = {
+        "dataset_name": dataset_name,
         "pop_size": pop_size,
         "n_generations": n_generations,
         "hidden_dim": hidden_dim,
@@ -217,19 +254,19 @@ def get_evolution(pop_size, n_generations, hidden_dim, mutation_rate, seed):
     cache = st.session_state.get("evo_cache")
     if cache and cache.get("params") == params:
         return cache["result"]
-    result = cached_run(pop_size, n_generations, hidden_dim, mutation_rate, seed)
+    result = cached_run(dataset_name, pop_size, n_generations, hidden_dim, mutation_rate, seed)
     st.session_state["evo_cache"] = {"params": params, "result": result}
     return result
 
 
-evolution = get_evolution(pop_size, n_generations, hidden_dim, mutation_rate, seed)
+evolution = get_evolution(dataset_name, pop_size, n_generations, hidden_dim, mutation_rate, seed)
 embedding_all, gen_labels, per_gen_embeddings = cached_alignment(
     evolution.weights_by_gen, lambda_align, seed
 )
 
 cmap_options = ["plasma", "inferno", "magma", "viridis", "cividis", "turbo", "fitness_map"]
 
-tab_umap, tab_vector = st.tabs(t("tabs"))
+tab_umap, tab_vector, tab_advanced = st.tabs(t("tabs"))
 
 CMAP_GEN = plt.cm.turbo
 CMAP_FIT_UMAP = get_discrete_cmap("fitness_map", n=48)
@@ -338,6 +375,48 @@ with tab_vector:
             st.pyplot(fig, clear_figure=True)
     except Exception as exc:  # noqa: BLE001
         st.error(f"Error while generating Vector Field: {exc}")
+
+with tab_advanced:
+    st.subheader(t("advanced_sub"))
+    st.markdown(t("advanced_desc"))
+    st.caption(t("advanced_caption"))
+
+    # Extra controls specific to the advanced view
+    with st.expander("Advanced parameters", expanded=False):
+        adv_grid_res = st.slider("Grid resolution", 15, 60, 30, step=5, key="adv_grid_res")
+        adv_sigma    = st.slider("Smoothing σ", 0.0, 4.0, 1.5, step=0.25, key="adv_sigma")
+        adv_padding  = st.slider("Crop padding", 0.02, 0.25, 0.08, step=0.01, key="adv_padding")
+        adv_sparse   = st.slider("Keep sparse fraction", 0.5, 1.0, 0.9, step=0.05, key="adv_sparse")
+        adv_dense    = st.slider("Keep dense fraction",  0.0, 0.8, 0.3, step=0.05, key="adv_dense")
+        adv_dpi      = st.select_slider("DPI", options=[72, 100, 150, 200], value=150, key="adv_dpi")
+
+    try:
+        _adv_title = {
+            "dataset":   DATASETS[dataset_name]["label"][language],
+            "gens":      n_generations,
+            "pop":       pop_size,
+            "noise":     mutation_rate,
+            "algorithm": "Simple Gaussian ES",
+            "lambda":    lambda_align,
+        }
+        fig = plot_improved_vector_field(
+            evolution.weights_by_gen,
+            evolution.fitness_by_gen,
+            lambda_align=lambda_align,
+            random_state=seed,
+            grid_res=adv_grid_res,
+            smoothing_sigma=adv_sigma,
+            crop_padding=adv_padding,
+            keep_sparse_frac=adv_sparse,
+            drop_dense_frac=adv_dense,
+            fitness_bins=31,
+            title_params=_adv_title,
+            figsize=(16, 10),
+            dpi=adv_dpi,
+        )
+        st.pyplot(fig, clear_figure=True)
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Error while generating Advanced plot: {exc}")
 
 if t("quick_notes"):
     st.markdown(t("quick_notes"))

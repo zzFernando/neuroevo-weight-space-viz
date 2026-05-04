@@ -108,6 +108,39 @@ class NeuroEvoMoons:
         return best_idx, best_fit
 
 
+def _collect_evolution(ne, n_generations: int, elite_frac: float, min_elite: int) -> EvolutionResult:
+    """Shared evolution loop for any NeuroEvo instance."""
+    weights_by_gen: List[np.ndarray] = []
+    fitness_by_gen: List[np.ndarray] = []
+    best_indices: List[int] = []
+    mean_fitness_list: List[float] = []
+    std_fitness_list: List[float] = []
+
+    fitness0 = np.array([ne.evaluate(ind) for ind in ne.population])
+    weights_by_gen.append(np.stack([ne.flatten(ind) for ind in ne.population]))
+    fitness_by_gen.append(fitness0)
+    best_indices.append(int(np.argmax(fitness0)))
+    mean_fitness_list.append(float(fitness0.mean()))
+    std_fitness_list.append(float(fitness0.std()))
+
+    for _ in range(1, n_generations):
+        best_idx, _ = ne.evolve_one_generation(elite_frac=elite_frac, min_elite=min_elite)
+        fitness = np.array([ne.evaluate(ind) for ind in ne.population])
+        weights_by_gen.append(np.stack([ne.flatten(ind) for ind in ne.population]))
+        fitness_by_gen.append(fitness)
+        best_indices.append(int(best_idx))
+        mean_fitness_list.append(float(fitness.mean()))
+        std_fitness_list.append(float(fitness.std()))
+
+    return EvolutionResult(
+        weights_by_gen=weights_by_gen,
+        fitness_by_gen=fitness_by_gen,
+        best_indices=np.array(best_indices, dtype=int),
+        mean_fitness=np.array(mean_fitness_list, dtype=float),
+        std_fitness=np.array(std_fitness_list, dtype=float),
+    )
+
+
 def run_evolution(
     pop_size: int = 200,
     n_generations: int = 50,
@@ -117,9 +150,7 @@ def run_evolution(
     elite_frac: float = 0.2,
     min_elite: int = 2,
 ) -> EvolutionResult:
-    """
-    Run neuroevolution and collect flattened weights/fitness per generation.
-    """
+    """Run neuroevolution on make_moons (backward-compatible entry point)."""
     ne = NeuroEvoMoons(
         pop_size=pop_size,
         hidden_dim=hidden_dim,
@@ -127,38 +158,23 @@ def run_evolution(
         seed=seed,
     )
 
-    weights_by_gen: List[np.ndarray] = []
-    fitness_by_gen: List[np.ndarray] = []
-    best_indices: List[int] = []
-    mean_fitness: List[float] = []
-    std_fitness: List[float] = []
+    return _collect_evolution(ne, n_generations, elite_frac, min_elite)
 
-    # Generation 0
-    fitness0 = np.array([ne.evaluate(ind) for ind in ne.population])
-    weights_by_gen.append(np.stack([ne.flatten(ind) for ind in ne.population]))
-    fitness_by_gen.append(fitness0)
-    best_indices.append(int(np.argmax(fitness0)))
-    mean_fitness.append(float(fitness0.mean()))
-    std_fitness.append(float(fitness0.std()))
 
-    # Subsequent generations
-    for _ in range(1, n_generations):
-        best_idx, _ = ne.evolve_one_generation(elite_frac=elite_frac, min_elite=min_elite)
-        fitness = np.array([ne.evaluate(ind) for ind in ne.population])
-
-        weights_by_gen.append(np.stack([ne.flatten(ind) for ind in ne.population]))
-        fitness_by_gen.append(fitness)
-        best_indices.append(int(best_idx))
-        mean_fitness.append(float(fitness.mean()))
-        std_fitness.append(float(fitness.std()))
-
-    return EvolutionResult(
-        weights_by_gen=weights_by_gen,
-        fitness_by_gen=fitness_by_gen,
-        best_indices=np.array(best_indices, dtype=int),
-        mean_fitness=np.array(mean_fitness, dtype=float),
-        std_fitness=np.array(std_fitness, dtype=float),
-    )
+def run_evolution_dataset(
+    dataset_name: str = "make_moons",
+    pop_size: int = 50,
+    n_generations: int = 50,
+    hidden_dim: int = 16,
+    mutation_rate: float = 0.05,
+    seed: int = 42,
+    elite_frac: float = 0.2,
+    min_elite: int = 2,
+) -> EvolutionResult:
+    """Run neuroevolution for any registered dataset."""
+    from datasets import build_dataset
+    ne = build_dataset(dataset_name, pop_size, hidden_dim, mutation_rate, seed)
+    return _collect_evolution(ne, n_generations, elite_frac, min_elite)
 
 
 def compute_aligned_umap_embedding(

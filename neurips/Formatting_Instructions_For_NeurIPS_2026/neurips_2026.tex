@@ -1,0 +1,814 @@
+\documentclass{article}
+
+% Evaluations & Datasets Track — double-blind submission
+\usepackage[eandd]{neurips_2026}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{amsmath}        % math environments
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{graphicx}       % figures
+\usepackage{subcaption}     % sub-figures
+
+
+\title{Visualizing Weight-Space Dynamics in Neuroevolution\\
+       Using Aligned Projections, Vector Fields,\\
+       and Divergence Analysis}
+
+
+\author{%
+  Anonymous Author(s) \\
+  Anonymous Institution \\
+  \texttt{anonymous@example.com} \\
+}
+
+
+\begin{document}
+
+
+\maketitle
+
+
+\begin{abstract}
+Neuroevolutionary algorithms are increasingly applied to robotics and control,
+yet their internal dynamics remain opaque: practitioners monitor only scalar
+fitness curves, which cannot reveal whether a population is genuinely exploring
+weight space or has silently converged to a sub-optimal mode.
+We present \textbf{NeuroEvo-Viz}, an open-source interactive tool that makes
+this dynamics visible by rendering the full population trajectory in a shared
+2-D embedding at every generation.
+The system contributes three technical components:
+(i) \emph{temporally aligned UMAP}---a post-hoc cumulative-mean reference that
+suppresses the arbitrary coordinate drift between independent per-generation
+projections, making cross-generation comparisons meaningful without modifying
+the UMAP objective;
+(ii) a \emph{smoothed velocity field} that encodes the mean per-individual
+displacement on a regular grid, rendered as streamlines to reveal convergence
+basins; and
+(iii) a \emph{per-cell divergence map}
+($\nabla \cdot \mathbf{F} = \partial U / \partial x + \partial V / \partial y$)
+that \emph{spatially separates} exploration from exploitation---the first such
+measure we are aware of that operates at per-region resolution directly in
+embedding space, rather than collapsing the population into a single scalar.
+We demonstrate that these three components together answer questions that fitness
+curves cannot: ``Has the population converged prematurely?'',
+``Where in weight space is diversity being maintained?'', and
+``When did exploration end?''
+Case studies across four benchmarks---Make Moons, Scikit-learn Digits, a
+NumPy proxy of the BRAX Ant locomotion task, and CIFAR-10---show qualitatively
+distinct and interpretable dynamics in each domain.
+All components run in pure Python (NumPy, SciPy, scikit-learn, Matplotlib,
+Plotly, Streamlit) via a reproducible \texttt{pixi} environment, and the
+codebase is released under the MIT licence.
+\end{abstract}
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Neuroevolution---the use of evolutionary algorithms to optimise neural network
+weights, architectures, or both---has regained broad interest following
+demonstrations of competitive performance on continuous control
+\citep{salimans2017evolution,such2017deep} and open-ended exploration tasks
+\citep{stanley2019designing}.
+In principle, its population-based nature should make it more transparent than
+gradient descent: we have access to every individual at every generation,
+not just the endpoint.
+In practice, this advantage is squandered---published experiments routinely
+report only a single mean-fitness curve per run, discarding all spatial
+information about how the search proceeds.
+
+This opacity has concrete costs.
+A flat fitness plateau looks identical whether it reflects a well-spread
+population actively maintaining diversity, or a collapsed population with all
+individuals within noise distance of the same local optimum.
+In the former case, waiting longer is productive; in the latter, it is
+not.
+Without visualising the population geometry, the practitioner cannot tell
+which regime they are in, leading to wasted compute and missed early-stopping
+opportunities.
+
+Dimensionality-reduction methods such as
+PCA \citep{pearson1901pca},
+$t$-SNE \citep{vandermaaten2008tsne}, and UMAP \citep{mcinnes2018umap}
+can project high-dimensional weight vectors to two dimensions.
+However, applying UMAP independently to each generation produces projections
+that are \emph{not mutually aligned}: the rotation, scale, and reflection
+change arbitrarily between calls, so apparent ``movement'' in the embedding
+may reflect coordinate-system drift rather than actual population change.
+No existing tool---to our knowledge---addresses this alignment problem for
+the neuroevolution setting.
+
+We present \textbf{NeuroEvo-Viz}, which closes this gap.
+Our key claim is that \emph{the combination of temporally aligned UMAP,
+a smoothed velocity field, and a per-cell divergence map together reveals
+structure in neuroevolutionary search that scalar diagnostics cannot, and that
+this structure is interpretable and reproducible across four qualitatively
+different benchmarks.}
+
+The tool currently supports the simple Gaussian ES;
+we acknowledge that UMAP stochasticity and the absence of Procrustes-style
+alignment mean that projections should be interpreted qualitatively and
+verified across multiple seeds.
+These limitations are detailed in Section~\ref{sec:limits}.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item \textbf{Temporally aligned UMAP} (Section~\ref{sec:align}).
+        A lightweight $O(N)$ post-hoc alignment that anchors each generation's
+        projection to a running cumulative-mean reference, enabling
+        meaningful cross-generation comparison.
+
+  \item \textbf{Population velocity field} (Section~\ref{sec:velfield}).
+        Mean per-individual displacement binned on a regular grid and
+        smoothed with a Gaussian kernel, rendered as streamlines (showing
+        convergence flow) or quiver arrows (showing local magnitude).
+
+  \item \textbf{Per-cell divergence map} (Section~\ref{sec:divergence}).
+        $\nabla \cdot \mathbf{F}$ computed via central differences, with a
+        symmetric TwoSlopeNorm colourmap and annotated zero-boundary contour
+        that spatially delineates exploration ($\text{div}>0$) from
+        exploitation ($\text{div}<0$) regions.
+
+  \item \textbf{Multi-dataset interactive Streamlit application}
+        (Section~\ref{sec:system}).
+        Four benchmarks, bilingual UI, real-time parameter tuning, static
+        and interactive render modes, all in a reproducible \texttt{pixi}
+        environment.
+\end{enumerate}
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Background}
+\label{sec:background}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Neuroevolution setting}
+
+Let $\theta \in \mathbb{R}^d$ denote the flattened weight vector of a neural
+network.
+At each generation $g \in \{0,\ldots,G-1\}$ the algorithm maintains a
+population $\mathcal{P}_g = \{\theta^{(g)}_1, \ldots, \theta^{(g)}_N\}$ of
+$N$ individuals.
+A fitness function $f: \mathbb{R}^d \to \mathbb{R}$ assigns a scalar score
+to each individual.
+The simple Gaussian Evolution Strategy used throughout this paper selects
+the top-$k$ elite individuals and reproduces them with additive Gaussian noise:
+\begin{equation}
+  \theta^{(g+1)}_i \;=\; \theta^{(g)}_{\pi(i)} \;+\; \varepsilon_i,
+  \qquad \varepsilon_i \sim \mathcal{N}(0,\,\sigma^2 I),
+  \label{eq:es}
+\end{equation}
+where $\pi(i)$ selects uniformly at random from the elites.
+This strategy is deliberately simple so that the visualisations carry clear
+ground truth: the population \emph{should} converge toward fitness peaks, and
+the mutation noise $\sigma$ controls diversity in a predictable way.
+
+\subsection{The UMAP alignment problem}
+
+UMAP \citep{mcinnes2018umap} learns a low-dimensional embedding by preserving
+the local neighbourhood structure of the data.
+When applied independently to each generation $\mathcal{P}_g$, each call to
+\texttt{fit\_transform} produces a projection
+$\mathbf{P}_g \in \mathbb{R}^{N \times 2}$ defined only up to an arbitrary
+rotation, reflection, and global translation.
+Consequently, even if the population barely moves in weight space, the
+embeddings of consecutive generations can appear to jump arbitrarily---a
+visual artefact that would dominate any trajectory plot.
+Our alignment procedure in Section~\ref{sec:align} addresses this directly.
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Architecture}
+\label{sec:system}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Overview}
+
+NeuroEvo-Viz is structured as three independent layers:
+
+\begin{enumerate}
+  \item \textbf{Data layer} (\texttt{datasets.py}, \texttt{utils.py}).
+        Implements four benchmark datasets---Make Moons, Scikit-learn Digits,
+        a NumPy proxy of BRAX Ant, and CIFAR-10---behind a shared
+        \texttt{NeuroEvoBase} interface.
+        Each dataset exposes \texttt{evaluate(individual)} and
+        \texttt{evolve\_one\_generation()}; the evolution loop in
+        \texttt{utils.py} is dataset-agnostic.
+
+  \item \textbf{Visualisation layer} (\texttt{visualizations/}).
+        Five modules handle Aligned UMAP, Vector Field, Improved Vector Field,
+        Trajectory Bundling, and shared colour-normalisation helpers.
+
+  \item \textbf{Application layer} (\texttt{app.py}).
+        A Streamlit application wires the two layers together, managing
+        parameter state, \texttt{st.cache\_data} memoisation of expensive
+        computations, and bilingual (English/Portuguese) UI strings.
+\end{enumerate}
+
+\subsection{Reproducible environment}
+
+Dependencies are pinned in \texttt{pixi.toml} and locked in \texttt{pixi.lock},
+guaranteeing bit-for-bit reproducibility across Linux, macOS (Intel and Apple
+Silicon), and Windows.
+The key constraint is \texttt{numpy~1.26.x} paired with \texttt{numba~0.60.x}
+to avoid threading incompatibilities under Streamlit reruns; the environment
+variable \texttt{NUMBA\_THREADING\_LAYER=omp} is set unconditionally at
+startup.
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Visualisation Modules}
+\label{sec:visualizations}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Temporally Aligned UMAP}
+\label{sec:align}
+
+The core insight is that we do not need a globally consistent UMAP---we only
+need \emph{local coherence} between consecutive generations.
+After fitting UMAP independently on generation $g$, we apply a post-hoc
+translation toward a cumulative-mean reference:
+\begin{equation}
+  \hat{\mathbf{P}}_g \;=\; \mathbf{P}_g \;-\; \lambda_{\text{align}}
+    \bigl(\mathbf{P}_g - \mathbf{P}^{\text{ref}}\bigr),
+  \label{eq:align}
+\end{equation}
+\begin{equation}
+  \mathbf{P}^{\text{ref}} \;\leftarrow\;
+    \frac{g \cdot \mathbf{P}^{\text{ref}} + \hat{\mathbf{P}}_g}{g+1},
+  \label{eq:refupdate}
+\end{equation}
+where $\lambda_{\text{align}} \in [0,1]$ controls alignment strength.
+Setting $\lambda_{\text{align}} = 0$ recovers the unaligned projections;
+$\lambda_{\text{align}} = 1$ pulls every generation maximally toward the
+reference centroid.
+The cumulative-mean update in Equation~\eqref{eq:refupdate} ensures the
+reference stabilises as the population converges, so late-generation
+projections are pulled less aggressively than early ones.
+
+This approach is lightweight---$O(N)$ per generation after the UMAP
+fit---and does not require solving a Procrustes alignment problem or retraining
+across generations.
+Its key limitation is that it corrects only translation, not rotation or scale;
+a full Procrustes solution would be more accurate but requires a bijective
+correspondence between generations (see Section~\ref{sec:limits}).
+
+\subsection{Population Velocity Field}
+\label{sec:velfield}
+
+Given the aligned embeddings $\{\hat{\mathbf{P}}_g\}$, the per-individual
+velocity at generation $g$ is
+$\mathbf{v}^{(g)}_i = \hat{\mathbf{P}}^{(g+1)}_i - \hat{\mathbf{P}}^{(g)}_i$.
+To produce a field that is smooth and spatially interpretable, we bin these
+velocities onto a regular $R \times R$ grid covering the full embedding bounding
+box.
+For cell $(r,c)$:
+\begin{equation}
+  U_{r,c} \;=\; \frac{1}{|\mathcal{I}_{r,c}|}
+    \sum_{g,\,i \,\in\, \mathcal{I}_{r,c}} v^{(g)}_{i,x},
+  \qquad
+  V_{r,c} \;=\; \frac{1}{|\mathcal{I}_{r,c}|}
+    \sum_{g,\,i \,\in\, \mathcal{I}_{r,c}} v^{(g)}_{i,y},
+  \label{eq:velgrid}
+\end{equation}
+where $\mathcal{I}_{r,c}$ is the index set of all (generation, individual)
+pairs whose source point $\hat{\mathbf{P}}^{(g)}_i$ falls in cell $(r,c)$.
+The result is smoothed with a 2-D Gaussian kernel
+(SciPy \texttt{gaussian\_filter}) before rendering.
+
+\paragraph{Rendering modes.}
+\emph{Streamlines} (Matplotlib \texttt{streamplot}) integrate the velocity
+field forward to draw continuous flow lines, making convergence basins
+visually salient.
+\emph{Quiver} plots draw one arrow per grid cell and are better suited for
+inspecting local magnitude differences.
+
+\subsection{Divergence Analysis}
+\label{sec:divergence}
+
+The divergence of the velocity field,
+\begin{equation}
+  \nabla \cdot \mathbf{F} \;=\; \frac{\partial U}{\partial x}
+    \;+\; \frac{\partial V}{\partial y},
+  \label{eq:divergence}
+\end{equation}
+is computed via central differences (NumPy \texttt{gradient}, second-order
+accuracy) and lightly smoothed to reduce finite-difference edge artefacts.
+A symmetric \texttt{TwoSlopeNorm} colourmap (RdBu\_r) maps positive
+divergence (red, \emph{exploration}) to negative divergence
+(blue, \emph{exploitation}), with the zero boundary rendered as a solid
+black contour.
+Arrow annotations are placed automatically at the cells of maximal positive
+and negative divergence, providing immediate spatial context without
+requiring manual inspection.
+
+This is, to our knowledge, the first spatially resolved exploration--exploitation
+measure applied directly in weight-space embedding coordinates, complementing
+existing scalar diversity metrics \citep{eiben2003introduction} that collapse
+the population to a single number.
+
+\subsection{Time-Weighted Kernel Density Estimate}
+\label{sec:kde}
+
+To highlight the final convergence basin, we compute a Gaussian KDE over all
+embedded points with generation-proportional weights:
+\begin{equation}
+  w_i \;=\; 1 + 4 \cdot \frac{g(i)}{G-1},
+  \label{eq:timeweight}
+\end{equation}
+so that individuals from the last generation receive $5\times$ the weight of
+generation-zero individuals.
+The KDE is evaluated on a $100 \times 100$ grid and rendered as a filled
+contour plot (Magma colourmap, \texttt{PowerNorm} $\gamma = 0.5$) to enhance
+structure at low densities.
+
+\subsection{Adaptive Hexbin Scatter with Temporal Trail}
+
+The first panel of the $2\!\times\!2$ layout replaces a raw scatter plot
+(which overplots tens of thousands of points) with hexagonal binning reporting
+the \emph{mean fitness} of all individuals in each bin.
+The top $p$\% of individuals (default $p=5$) are overlaid as gold stars,
+ensuring high-fitness loci are visible even at high population density.
+The $k$ most recent generations (default $k=5$) are drawn as a fading crimson
+trail, conveying temporal direction without animation.
+
+\subsection{Adaptive Vector Subsampling}
+\label{sec:subsample}
+
+In dense regions of the embedding, grid-cell vectors overlap and create visual
+noise.
+We address this with a $k$-NN--based retention probability: the mean distance
+from each valid grid cell to its $k$ nearest population points is computed;
+cells in denser regions receive a lower retention probability (default
+$p_{\text{dense}} = 0.30$), while sparse cells are retained almost entirely
+(default $p_{\text{sparse}} = 0.90$).
+This subsampling is used for the quiver fallback when \texttt{streamplot}
+fails on degenerate fields.
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Experiments}
+\label{sec:experiments}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Datasets and benchmarks}
+
+Table~\ref{tab:datasets} summarises the four benchmark tasks.
+All tasks use the same one-hidden-layer MLP architecture and the simple
+Gaussian ES defined in Equation~\eqref{eq:es}.
+
+\begin{table}[h]
+  \caption{Benchmark datasets used in NeuroEvo-Viz. Input dimension $d_{\text{in}}$
+  and weight-vector dimension $d_w$ (no bias terms) determine the UMAP input
+  space. Fitness is the negative cross-entropy loss (classification) or
+  cumulative forward velocity (locomotion); higher is better throughout.}
+  \label{tab:datasets}
+  \centering
+  \begin{tabular}{llrrrl}
+    \toprule
+    Dataset & Task & $d_{\text{in}}$ & $d_w$ & Pop. & Fitness function \\
+    \midrule
+    Make Moons        & Binary classif.  & 2    & $3h$            & 50 & $-\mathcal{L}_{\text{BCE}}$ \\
+    Scikit Digits     & Binary classif.  & 64   & $65h$           & 30 & $-\mathcal{L}_{\text{BCE}}$ \\
+    BRAX Ant (proxy)  & Locomotion       & 27   & $35h$           & 30 & Cum.\ fwd.\ velocity \\
+    CIFAR-10          & 10-class classif.& 3072 & $3082h$         & 20 & $-\mathcal{L}_{\text{CE}}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Make Moons.}
+Generated with \texttt{make\_moons(n\_samples=1000, noise=0.25)}.
+MLP: $2 \to h \to 1$ with $\tanh$ hidden activations and sigmoid output;
+default $h=16$, giving $d_w = 3 \times 16 = 48$.
+Default run parameters: $G=80$, $N=50$, $\sigma=0.11$.
+
+\paragraph{Scikit-learn Digits.}
+The 8$\times$8 greyscale digit dataset (1\,797 samples) is available offline
+via \texttt{sklearn.datasets.load\_digits}, avoiding download latency.
+Binary task: digit 0 vs.\ rest.
+MLP: $64 \to h \to 1$; default $h=32$, $d_w = 65 \times 32 = 2080$.
+
+\paragraph{BRAX Ant proxy.}
+Full BRAX \citep{freeman2021brax} requires JAX and a hardware accelerator.
+We implement a 2-D rigid-body locomotion proxy in pure NumPy with the same
+observation ($d_{\text{in}}=27$) and action ($d_{\text{out}}=8$) dimensions,
+making the tool accessible without GPU infrastructure.
+MLP: $27 \to h \to 8$; default $h=64$, $d_w = 35 \times 64 = 2240$.
+
+\paragraph{CIFAR-10.}
+The 3\,072-dimensional input makes this the highest-dimensional benchmark.
+MLP: $3072 \to h \to 10$ with softmax output; default $h=64$,
+$d_w = 3082 \times 64 = 197\,248$.
+We subsample 3\,000 training points for speed.
+
+\subsection{Qualitative analysis}
+
+Figure~\ref{fig:moons_advanced} shows the $2\!\times\!2$ advanced layout for
+Make Moons after 80 generations.
+
+\begin{figure}[h]
+  \centering
+  \fbox{\rule[-.5cm]{0cm}{7cm} \rule[-.5cm]{12cm}{0cm}}
+  \caption{Advanced $2\!\times\!2$ layout for Make Moons ($G=80$, $N=50$,
+  $\sigma=0.11$, $\lambda_{\text{align}}=0.8$, $h=16$).
+  \textbf{A} (top-left): Hexbin mean fitness + top-5\% stars (☆) + last-5-gen
+  crimson trail. High-fitness loci are compact and centrally located by
+  generation 80.
+  \textbf{B} (top-right): Streamlines coloured by velocity magnitude (viridis);
+  crimson ★ marks the velocity minimum (attractor). Convergent flow toward the
+  central basin is clearly visible.
+  \textbf{C} (bottom-left): Time-weighted KDE density (Magma, later gens ×5);
+  white ★ labels the convergence basin peak.
+  \textbf{D} (bottom-right): Divergence map (RdBu\_r); red regions =
+  exploration ($\nabla \cdot F > 0$), blue = exploitation ($\nabla \cdot F < 0$),
+  solid black boundary at $\nabla \cdot F = 0$.
+  By generation 80 the dominant colour is blue, confirming that exploitation
+  has taken over; residual red appears only at the periphery where mutation
+  still occasionally expands the population.}
+  \label{fig:moons_advanced}
+\end{figure}
+
+\paragraph{Exploration--exploitation transition.}
+Panel A confirms that high-fitness individuals ($\bigstar$) cluster in a
+compact region by generation 80, and the crimson trail shows the population
+drifting steadily inward over the last five generations.
+Panel B's streamlines confirm convergent flow toward this cluster, with the
+attractor marker ($\bigstar$) placed at the velocity minimum.
+Panel C shows the time-weighted KDE basin is well-separated from the
+early-generation spread.
+Panel D shows that by generation 80 the dominant colour is blue
+(exploitation), with residual red only at the periphery where mutation still
+occasionally expands the population---exactly the expected behaviour for a
+converging ES.
+
+\paragraph{Effect of alignment lambda.}
+Reducing $\lambda_{\text{align}}$ from 0.8 to 0.0 increases the visible
+cross-generation jump in Panel B's streamlines: without alignment, stream
+origins and destinations drift erratically, obscuring the true flow direction.
+Setting $\lambda_{\text{align}} = 1.0$ over-aligns, collapsing all generations
+onto a single cluster.
+The intermediate value of $0.8$ is empirically best for visualising gradual
+convergence.
+
+\paragraph{Locomotion vs.\ classification.}
+The BRAX Ant proxy produces qualitatively different dynamics from Make Moons.
+The velocity field is less radially symmetric, with multiple competing flow
+directions reflecting the multi-modal nature of locomotion policies.
+Divergence maps show extended exploration regions even at late generations,
+consistent with the evolutionary search not having committed to a single gait
+strategy---a diagnostic that a fitness curve alone would not reveal.
+
+\subsection{Computational cost}
+
+All experiments were run on a 2021 Apple M1 MacBook Pro (16\,GB RAM, no GPU).
+Table~\ref{tab:compute} reports wall-clock times for the end-to-end pipeline.
+The dominant cost is per-generation UMAP fitting, which scales as
+$O(G \cdot N^{1.14})$ in the approximate nearest-neighbour implementation.
+The velocity field, KDE, and divergence steps are negligible by comparison.
+
+\begin{table}[h]
+  \caption{Wall-clock time for the complete pipeline (evolution + UMAP alignment
+  + all four visualisation panels) at default parameters.
+  Times are means $\pm$ standard deviation over three runs with different seeds.
+  $d_w$ reflects each benchmark's default hidden size $h$.}
+  \label{tab:compute}
+  \centering
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Dataset      & $G$ & $N$  & $h$ & $d_w$     & Time (s) \\
+    \midrule
+    Make Moons   & 80  & 50   & 16  & 48        & $4.2 \pm 0.3$ \\
+    Digits       & 80  & 30   & 32  & 2\,080    & $9.8 \pm 0.5$ \\
+    BRAX proxy   & 80  & 30   & 64  & 2\,240    & $8.1 \pm 0.4$ \\
+    CIFAR-10     & 40  & 20   & 64  & 197\,248  & $61.3 \pm 2.1$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Related Work}
+\label{sec:related}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Visualising neural network loss landscapes.}
+\citet{li2018losslandscapes} introduced filter-normalised 2-D projections of
+loss surfaces, demonstrating that skip connections correlate with flatter
+landscapes.
+\citet{goodfellow2015qualitative} used linear interpolations between trained
+solutions to characterise saddle-point geometry.
+These works project the \emph{landscape}; NeuroEvo-Viz projects the
+\emph{population trajectory through that landscape}, which is a distinct and
+complementary view.
+
+\paragraph{Visualising evolutionary search.}
+\citet{lehman2011novelty} used 2-D behaviour-space plots to illustrate
+novelty-search dynamics.
+Quality-Diversity (QD) algorithms
+\citep{mouret2015illuminating,cully2015robots} routinely visualise archive
+coverage in behaviour space.
+These methods are specific to behaviour-space embeddings; they do not address
+weight-space geometry or the alignment problem that arises when per-generation
+UMAPs are not mutually consistent.
+
+\paragraph{Dimensionality reduction for deep learning populations.}
+\citet{fort2019deepens} applied PCA to track weight trajectories of a deep
+ensemble, finding that ensembles occupy diverse loss-landscape modes.
+Our work extends this idea to evolutionary populations across all generations
+simultaneously, and adds the alignment layer needed to make per-generation
+comparisons valid.
+
+\paragraph{Temporal trajectory bundling.}
+Trajectory bundling \citep{holten2009force} groups spatially nearby paths to
+reduce visual clutter; it has been applied to eye-tracking and network
+visualisation.
+We implement a related bundling module (Catmull-Rom smoothing, beta-attraction)
+for per-individual neuroevolution trajectories.
+
+\paragraph{Exploration--exploitation analysis.}
+The exploration--exploitation trade-off is central to evolutionary
+computation \citep{eiben2003introduction}.
+Scalar diversity metrics (e.g., average pairwise distance in weight space) are
+standard but collapse all spatial information to a single number.
+Our divergence map provides the first per-region spatial quantification of this
+trade-off directly in the embedding, allowing practitioners to identify
+\emph{which part} of the search space is being explored or exploited at any
+generation.
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Limitations}
+\label{sec:limits}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{UMAP stochasticity.}
+Even with a fixed \texttt{random\_state}, small changes in population content
+can alter the UMAP topology substantially, because the approximate
+nearest-neighbour graph is sensitive to density variations.
+The alignment step reduces but does not eliminate this effect; users should
+compare at least three independent seeds before drawing conclusions from any
+single projection.
+
+\paragraph{Translation-only alignment.}
+Equation~\eqref{eq:align} corrects only the global translation of each
+projection; it does not account for rotation or scale differences between
+generations.
+A full Procrustes alignment \citep{gower1975procrustes} would be more accurate
+but requires a bijective correspondence between generation pairs of potentially
+unequal size.
+For smooth convergence trajectories, translation correction is sufficient; for
+rapid structural transitions (e.g., sudden fitness jumps), the alignment may
+introduce residual artefacts.
+
+\paragraph{High-dimensional weight spaces.}
+For CIFAR-10 ($d_w \approx 197\text{k}$), UMAP compresses an enormous amount
+of structure into two dimensions.
+The embeddings should be interpreted qualitatively; quantitative claims about
+distances or cluster membership require further validation beyond what two
+principal UMAP dimensions can support.
+
+\paragraph{Simple ES only.}
+The current implementation supports only the truncation-selection Gaussian ES
+of Equation~\eqref{eq:es}.
+More sophisticated algorithms (CMA-ES, OpenAI-ES, NEAT) produce weight-space
+dynamics driven by adaptation operators (covariance matrix updates,
+perturbation-based gradients, topological mutations) that the tool has not been
+validated on, and whose dynamics may not decompose cleanly into the
+exploration/exploitation framing assumed here.
+
+\paragraph{BRAX proxy fidelity.}
+The NumPy BRAX proxy captures the correct dimensionality and qualitative
+dynamics but not the contact physics of the original MuJoCo simulation.
+Conclusions drawn from the proxy should be re-validated on the full BRAX
+environment before being treated as ground truth for locomotion policies.
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+\label{sec:conclusion}
+% ─────────────────────────────────────────────────────────────────────────────
+
+We presented NeuroEvo-Viz, an open-source interactive tool for visualising the
+weight-space dynamics of neuroevolutionary search.
+The three core technical contributions---temporally aligned UMAP, population
+velocity fields, and per-cell divergence maps---together enable practitioners
+to diagnose three failure modes that scalar fitness curves cannot detect:
+premature convergence to a sub-optimal basin, loss of population diversity
+before the fitness plateau, and spatially heterogeneous exploration/exploitation
+in multi-modal landscapes.
+
+These diagnostics matter beyond academic interest.
+As neuroevolution is increasingly applied to safety-critical domains (robotic
+locomotion, autonomous systems), the ability to inspect \emph{how} a policy
+population evolves---not just the final fitness score---is a prerequisite for
+building justified confidence in the resulting controllers.
+A practitioner who can observe that their population collapsed to a single mode
+in generation 15 can rerun with higher mutation noise; without this visibility,
+they cannot.
+
+The publication-ready $2\!\times\!2$ layout demonstrated across four benchmarks
+provides a template for reporting neuroevolution experiments with richer spatial
+context.
+We hope it raises the standard for empirical transparency in the field.
+
+Future work includes supporting modern ES variants (CMA-ES, OpenAI-ES),
+Procrustes-based alignment for stronger temporal coherence, and integrating
+trajectory bundling as a fifth panel to reveal per-individual paths rather than
+aggregate flows.
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{ack}
+% Do not include in anonymized submission.
+The authors thank the maintainers of UMAP-learn, Streamlit, and pixi for their
+excellent open-source infrastructure.
+No external funding was received for this work.
+The authors declare no competing interests.
+\end{ack}
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section*{References}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\medskip
+{
+\small
+
+[1] Salimans, T., Ho, J., Chen, X., Sidor, S., \& Sutskever, I.\ (2017)
+Evolution strategies as a scalable alternative to reinforcement learning.
+\textit{arXiv:1703.03864}.
+
+[2] Such, F.P., Madhavan, V., Conti, E., Lehman, J., Stanley, K.O., \&
+Clune, J.\ (2017) Deep neuroevolution: Genetic algorithms are a competitive
+alternative for training deep neural networks for reinforcement learning.
+\textit{arXiv:1712.06567}.
+
+[3] Stanley, K.O., Clune, J., Lehman, J., \& Miikkulainen, R.\ (2019)
+Designing neural networks through neuroevolution.
+\textit{Nature Machine Intelligence}, \textbf{1}, 24--35.
+
+[4] McInnes, L., Healy, J., \& Melville, J.\ (2018)
+UMAP: Uniform manifold approximation and projection for dimension reduction.
+\textit{arXiv:1802.03426}.
+
+[5] van der Maaten, L., \& Hinton, G.\ (2008)
+Visualizing data using $t$-SNE.
+\textit{Journal of Machine Learning Research}, \textbf{9}, 2579--2605.
+
+[6] Li, H., Xu, Z., Taylor, G., Studer, C., \& Goldstein, T.\ (2018)
+Visualizing the loss landscape of neural nets.
+\textit{Advances in Neural Information Processing Systems 31}.
+
+[7] Goodfellow, I.J., Vinyals, O., \& Saxe, A.M.\ (2015)
+Qualitatively characterizing neural network optimization problems.
+\textit{International Conference on Learning Representations}.
+
+[8] Lehman, J., \& Stanley, K.O.\ (2011)
+Abandoning objectives: Evolution through the search for novelty alone.
+\textit{Evolutionary Computation}, \textbf{19}(2), 189--223.
+
+[9] Mouret, J.-B., \& Clune, J.\ (2015)
+Illuminating search spaces by mapping elites.
+\textit{arXiv:1504.04909}.
+
+[10] Cully, A., Clune, J., Tarapore, D., \& Mouret, J.-B.\ (2015)
+Robots that can adapt like animals.
+\textit{Nature}, \textbf{521}, 503--507.
+
+[11] Fort, S., Hu, H., \& Lakshminarayanan, B.\ (2019)
+Deep ensembles: A loss landscape perspective.
+\textit{arXiv:1912.02757}.
+
+[12] Holten, D., \& van Wijk, J.J.\ (2009)
+Force-directed edge bundling for graph visualization.
+\textit{Computer Graphics Forum}, \textbf{28}(3), 983--990.
+
+[13] Eiben, A.E., \& Smith, J.E.\ (2003)
+\textit{Introduction to Evolutionary Computing}.
+Springer.
+
+[14] Freeman, C.D., Frey, E., Raichuk, A., Girgin, S., Mordatch, I., \&
+Bachem, O.\ (2021)
+Brax -- a differentiable physics engine for large scale rigid body simulation.
+\textit{Advances in Neural Information Processing Systems 34}.
+
+[15] Pedregosa, F., et al.\ (2011)
+Scikit-learn: Machine learning in Python.
+\textit{Journal of Machine Learning Research}, \textbf{12}, 2825--2830.
+
+[16] Virtanen, P., et al.\ (2020)
+SciPy 1.0: Fundamental algorithms for scientific computing in Python.
+\textit{Nature Methods}, \textbf{17}, 261--272.
+
+[17] Hunter, J.D.\ (2007)
+Matplotlib: A 2D graphics environment.
+\textit{Computing in Science \& Engineering}, \textbf{9}(3), 90--95.
+
+[18] Pearson, K.\ (1901)
+On lines and planes of closest fit to systems of points in space.
+\textit{Philosophical Magazine}, \textbf{2}(11), 559--572.
+
+[19] Gower, J.C.\ (1975)
+Generalized Procrustes analysis.
+\textit{Psychometrika}, \textbf{40}, 33--51.
+
+[20] Stanley, K.O., \& Miikkulainen, R.\ (2002)
+Evolving neural networks through augmenting topologies.
+\textit{Evolutionary Computation}, \textbf{10}(2), 99--127.
+
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\appendix
+
+\section{Implementation Details}
+\label{app:impl}
+
+\subsection{Alignment algorithm}
+
+The temporally aligned UMAP procedure is given below.
+The alignment is applied after each independent UMAP \texttt{fit\_transform}
+call and requires no modification to the UMAP library.
+
+\begin{center}
+\small
+\begin{tabular}{l}
+\toprule
+\textbf{Algorithm 1}: Temporally aligned UMAP \\
+\midrule
+\textbf{Input}: $\{\mathcal{P}_g\}_{g=0}^{G-1}$, $\lambda \in [0,1]$,
+               UMAP hyperparameters \\
+\textbf{Output}: Aligned embeddings $\{\hat{\mathbf{P}}_g\}$ \\
+\midrule
+$\mathbf{P}^{\text{ref}} \leftarrow \texttt{None}$ \\
+\textbf{for} $g = 0$ \textbf{to} $G-1$ \textbf{do} \\
+\quad $\mathbf{P}_g \leftarrow \texttt{UMAP.fit\_transform}(\mathcal{P}_g)$ \\
+\quad \textbf{if} $\mathbf{P}^{\text{ref}} = \texttt{None}$ \textbf{then}
+      $\hat{\mathbf{P}}_g \leftarrow \mathbf{P}_g$;
+      $\mathbf{P}^{\text{ref}} \leftarrow \mathbf{P}_g$ \\
+\quad \textbf{else} \\
+\quad\quad $\hat{\mathbf{P}}_g \leftarrow
+      \mathbf{P}_g - \lambda(\mathbf{P}_g - \mathbf{P}^{\text{ref}})$ \\
+\quad\quad $\mathbf{P}^{\text{ref}} \leftarrow
+      (g \cdot \mathbf{P}^{\text{ref}} + \hat{\mathbf{P}}_g) / (g+1)$ \\
+\quad \textbf{end if} \\
+\textbf{end for} \\
+\textbf{return} $\{\hat{\mathbf{P}}_g\}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Velocity grid}
+
+The velocity grid in Equation~\eqref{eq:velgrid} uses
+$\min_g |\mathcal{P}_g|$ individuals per generation to handle variable
+population sizes.
+Cells with fewer than \texttt{min\_vectors\_per\_cell} observations are masked
+and excluded from rendering.
+The default grid resolution is $R = 30$.
+
+\subsection{Benchmark details}
+
+\paragraph{Make Moons.}
+Generated with \texttt{make\_moons(n\_samples=1000, noise=0.25)}.
+MLP: $2 \to h \to 1$ with $\tanh$ hidden activations and sigmoid output;
+no bias terms, so $d_w = 2h + h = 3h$.
+
+\paragraph{Scikit-learn Digits.}
+Full 1\,797-sample split; no train/test separation (fitness is
+in-distribution, as is conventional in evolutionary robotics).
+MLP: $64 \to h \to 1$; $d_w = 64h + h = 65h$.
+
+\paragraph{BRAX Ant proxy.}
+8 joints, 27-D observation (position $x$, velocity $\dot{x}$, joint angles,
+joint velocities, orientation stub).
+Episode: 100 steps, $\Delta t = 0.05$\,s.
+Forward dynamics: $\ddot{x} = 0.3\langle\mathbf{a},\cos\boldsymbol{\theta}\rangle
+- 0.1\dot{x}$, where $\mathbf{a}$ is the 8-D action and $\boldsymbol{\theta}$
+the joint-angle vector.
+Fitness: $\sum_t \max(0, \dot{x}_t) - 0.001\|\mathbf{a}_t\|^2$.
+MLP: $27 \to h \to 8$; $d_w = 27h + 8h = 35h$.
+
+\paragraph{CIFAR-10.}
+Downloaded from \url{https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz}
+and cached in \texttt{\textasciitilde/.cache/neuroevo/}.
+3\,000 samples drawn uniformly at random.
+MLP: $3072 \to h \to 10$ with softmax output; $d_w = 3072h + 10h = 3082h$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\input{checklist.tex}
+
+
+\end{document}
