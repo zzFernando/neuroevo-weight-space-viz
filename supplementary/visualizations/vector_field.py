@@ -121,12 +121,18 @@ def _draw_vectors(ax, X, Y, U, V, speed, mode: str, cmap):
         U,
         V,
         density=1.2,
-        color=neutral_color if cmap is None else speed,
+        color=neutral_color if cmap is None else np.ma.filled(speed, 0.0),
         cmap=cmap,
         linewidth=1.4 if cmap is None else 1.3,
         arrowsize=1.6 if cmap is None else 1.3,
         zorder=3,
     )
+
+
+def _style_ax(ax: plt.Axes) -> None:
+    ax.set_facecolor("white")
+    ax.tick_params(axis="both", which="major", labelsize=9)
+    ax.grid(alpha=0.2, linestyle="--", linewidth=0.4)
 
 
 def _prepare_field_data(
@@ -141,9 +147,10 @@ def _prepare_field_data(
     subsample: int,
     quantize_bins: int | None,
     fill_empty_cells: bool,
+    pca_dims=None,
 ):
     embedding, gen_labels, per_gen_embeddings = compute_aligned_umap_embedding(
-        weights_by_gen, lambda_align=lambda_align, random_state=random_state
+        weights_by_gen, lambda_align=lambda_align, random_state=random_state, pca_dims=pca_dims
     )
     Xc, Yc, U, V, speed = _compute_velocity_grid(
         per_gen_embeddings, grid_res=grid_res, min_vectors_per_cell=min_vectors_per_cell
@@ -187,6 +194,52 @@ def _prepare_field_data(
     return embedding, gen_labels, fitness_concat, Xc, Yc, U, V, speed
 
 
+def _prepare_overlay_data(
+    weights_by_gen: Sequence[np.ndarray],
+    fitness_by_gen: Sequence[np.ndarray],
+    lambda_align: float,
+    current_gen_idx: int,
+    grid_res: int,
+    min_vectors_per_cell: int,
+    random_state: int,
+    smoothing_sigma: float,
+    pca_dims=None,
+):
+    embedding, gen_labels, per_gen_embeddings = compute_aligned_umap_embedding(
+        weights_by_gen, lambda_align=lambda_align, random_state=random_state, pca_dims=pca_dims
+    )
+
+    if current_gen_idx < 0:
+        current_gen_idx = len(weights_by_gen) + current_gen_idx
+    if current_gen_idx < 0 or current_gen_idx >= len(weights_by_gen):
+        raise ValueError("current_gen_idx must be within the range of available generations")
+
+    current_indices = np.where(gen_labels == current_gen_idx)[0]
+    emb = embedding[current_indices]
+    fitness = np.asarray(fitness_by_gen[current_gen_idx]) if fitness_by_gen else np.array([])
+    current_gen_labels = np.full(len(current_indices), current_gen_idx, dtype=int)
+
+    Xc, Yc, U, V, speed = _compute_velocity_grid(
+        per_gen_embeddings, grid_res=grid_res, min_vectors_per_cell=min_vectors_per_cell
+    )
+
+    masked_field = isinstance(U, np.ma.MaskedArray)
+    if smoothing_sigma > 0:
+        if masked_field:
+            U = _gaussian_smooth(U, sigma=smoothing_sigma)
+            V = _gaussian_smooth(V, sigma=smoothing_sigma)
+        else:
+            U = _gaussian_smooth_dense(U, sigma=smoothing_sigma)
+            V = _gaussian_smooth_dense(V, sigma=smoothing_sigma)
+
+    if masked_field:
+        speed = _masked_speed(U, V)
+    else:
+        speed = np.sqrt(U ** 2 + V ** 2)
+
+    return emb, fitness, current_gen_labels, Xc, Yc, U, V, speed
+
+
 def plot(
     weights_by_gen: Sequence[np.ndarray],
     fitness_by_gen: Sequence[np.ndarray],
@@ -208,6 +261,7 @@ def plot(
     fitness_bins: int = 31,
     show_speed_colorbar: bool = False,
     fill_empty_cells: bool = True,
+    pca_dims=None,
 ):
     """
     Plot streamlines of the average displacement field between consecutive
@@ -236,6 +290,7 @@ def plot(
         subsample,
         quantize_bins,
         fill_empty_cells,
+        pca_dims=pca_dims,
     )
     if cmap_fit is None:
         cmap_fit = get_discrete_cmap("fitness_map", n=24)
@@ -286,6 +341,104 @@ def plot(
     return fig
 
 
+def plot_overlay(
+    weights_by_gen: Sequence[np.ndarray],
+    fitness_by_gen: Sequence[np.ndarray],
+    lambda_align: float = 0.3,
+    current_gen_idx: int = -1,
+    grid_res: int = 30,
+    min_vectors_per_cell: int = 1,
+    random_state: int = 42,
+    smoothing_sigma: float = 1.0,
+    vector_mode: str = "stream",
+    cmap_speed=None,
+    color_by: str = "fitness",
+    cmap_points=None,
+    point_size: int = 24,
+    point_alpha: float = 0.8,
+    show_speed_colorbar: bool = True,
+    pca_dims=None,
+):
+    """
+    Plot the current generation projection overlaid with streamlines from the aligned
+    velocity field computed across all generations.
+    """
+    if cmap_speed is None:
+        cmap_speed = plt.cm.plasma
+    if cmap_points is None:
+        cmap_points = plt.cm.viridis if color_by == "fitness" else plt.cm.turbo
+
+    emb, fitness, gen_labels, Xc, Yc, U, V, speed = _prepare_overlay_data(
+        weights_by_gen,
+        fitness_by_gen,
+        lambda_align,
+        current_gen_idx,
+        grid_res,
+        min_vectors_per_cell,
+        random_state,
+        smoothing_sigma,
+        pca_dims=pca_dims,
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 6), dpi=150, facecolor="white")
+
+    if vector_mode == "stream":
+        strm = ax.streamplot(
+            Xc,
+            Yc,
+            np.array(np.ma.filled(U, 0.0)),
+            np.array(np.ma.filled(V, 0.0)),
+            color=speed,
+            cmap=cmap_speed,
+            density=1.2,
+            linewidth=1.3,
+            arrowsize=1.3,
+            zorder=1,
+        )
+    else:
+        valid = ~U.mask if isinstance(U, np.ma.MaskedArray) else np.ones_like(U, dtype=bool)
+        ax.quiver(
+            Xc[valid],
+            Yc[valid],
+            U[valid],
+            V[valid],
+            color=cmap_speed((speed - speed.min()) / (speed.max() - speed.min() + 1e-12)),
+            angles="xy",
+            scale_units="xy",
+            scale=None,
+            width=0.003,
+            zorder=1,
+        )
+
+    if color_by == "fitness":
+        norm = plt.Normalize(vmin=np.percentile(fitness, 5), vmax=np.percentile(fitness, 95))
+        norm = plt.Normalize(vmin=fitness.min(), vmax=fitness.max()) if fitness.size else plt.Normalize(0, 1)
+        sc = ax.scatter(emb[:, 0], emb[:, 1], c=fitness, cmap=cmap_points, norm=norm,
+                        s=point_size, alpha=point_alpha, edgecolors="k", linewidths=0.25, zorder=2)
+        cbar = fig.colorbar(sc, ax=ax, fraction=0.04, pad=0.02)
+        cbar.set_label("Fitness", fontsize=9)
+    else:
+        sc = ax.scatter(emb[:, 0], emb[:, 1], c=gen_labels, cmap=cmap_points,
+                        s=point_size, alpha=point_alpha, edgecolors="k", linewidths=0.25, zorder=2)
+        cbar = fig.colorbar(sc, ax=ax, fraction=0.04, pad=0.02)
+        cbar.set_label("Generation", fontsize=9)
+
+    if show_speed_colorbar and vector_mode == "stream":
+        sm = plt.cm.ScalarMappable(cmap=cmap_speed, norm=plt.Normalize(vmin=speed.min(), vmax=speed.max()))
+        sm.set_array([])
+        cbar_speed = fig.colorbar(sm, ax=ax, fraction=0.04, pad=0.12)
+        cbar_speed.set_label("Flow speed", fontsize=9)
+        cbar_speed.ax.tick_params(labelsize=8)
+
+    ax.set_title("Current Projection with Streamline Overlay", fontsize=13)
+    ax.set_xlabel("UMAP-1")
+    ax.set_ylabel("UMAP-2")
+    ax.grid(alpha=0.2, linestyle="--", linewidth=0.4)
+    _style_ax(ax)
+    fig.tight_layout()
+    return fig
+
+
 def plot_interactive(
     weights_by_gen: Sequence[np.ndarray],
     fitness_by_gen: Sequence[np.ndarray],
@@ -307,6 +460,7 @@ def plot_interactive(
     fitness_bins: int = 31,
     show_speed_colorbar: bool = False,
     fill_empty_cells: bool = True,
+    pca_dims=None,
 ):
     """
     Interactive Plotly variant of the vector field visualization.
@@ -333,6 +487,7 @@ def plot_interactive(
         subsample,
         quantize_bins,
         fill_empty_cells,
+        pca_dims=pca_dims,
     )
 
     colorscale_gen = mpl_cmap_to_plotly_scale(cmap_gen)

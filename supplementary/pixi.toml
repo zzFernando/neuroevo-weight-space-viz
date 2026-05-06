@@ -12,6 +12,7 @@ scikit-learn = "1.4.2.*"
 streamlit = "1.50.0.*"
 umap-learn = "0.5.7.*"
 numba = ">=0.60,<1"
+tectonic = ">=0.16.9,<0.17"
 
 [tasks]
 app = "streamlit run app.py"

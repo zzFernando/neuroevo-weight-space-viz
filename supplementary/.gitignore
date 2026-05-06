@@ -1,0 +1,8 @@
+.pixi/
+__pycache__/
+*.pyc
+cache/
+results/
+figures/
+errors.log
+.DS_Store

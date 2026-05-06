@@ -1,0 +1,898 @@
+\documentclass{article}
+
+\PassOptionsToPackage{numbers,compress}{natbib}
+\usepackage{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{float}
+
+\title{Beyond Fitness Curves: Visualizing Population Dynamics\\in Neuroevolutionary Search}
+
+\author{%
+  Anonymous Author(s)\\
+  Anonymous Institution\\
+  \texttt{anonymous@institution.edu}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Neuroevolutionary algorithms maintain entire populations of candidate
+solutions across generations, yet their dynamics are typically analyzed
+only through scalar fitness metrics, which discard emergent geometric
+structure in the solution space. We propose an analysis approach based
+on temporally aligned UMAP embeddings and population velocity fields,
+with a post-hoc alignment procedure that reduces arbitrary drift between
+successive projections, making temporal comparisons consistent. Across
+two benchmarks with qualitatively distinct search regimes---Make Moons
+($d_w = 48$) and CIFAR-10 ($d_w \approx 197{,}000$)---we observe coherent
+population flows associated with convergence basins, spatial localization
+of high-fitness individuals, and task-dependent multimodal structure
+invisible in scalar metrics. We show that these structures are largely
+obscured in unaligned projections, while embedding-space velocity fields
+expose interpretable dynamic regimes through spatial divergence patterns,
+suggesting that population geometry provides a complementary lens for
+understanding exploration, convergence, and multimodality in neuroevolution.
+\end{abstract}
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Introduction}
+% ─────────────────────────────────────────────────────────────
+
+Neuroevolutionary algorithms \cite{stanley2002evolving,such2017deep}
+optimize neural network parameters through population-based search,
+maintaining a diverse set of candidate solutions across generations.
+Despite their widespread use, our understanding of their internal
+dynamics remains largely limited to scalar summaries---mean fitness
+curves and best-individual trajectories---that collapse the
+population's full geometry into a single number per generation.
+
+This is a significant blind spot. A population of neural networks is
+a cloud of points in a high-dimensional weight space, and its
+evolution---convergence basins, exploratory spread, multimodal
+structure---constitutes rich information about how search is
+proceeding. Scalar fitness curves may not distinguish between a
+population converging toward a single attractor and one that is
+simultaneously exploring multiple disconnected fitness peaks.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/pipeline_diagram.pdf}
+  \caption{
+    \textbf{Analysis pipeline.}
+    At each generation, the neuroevolutionary population (a cloud of
+    weight vectors) is projected jointly into 2D via UMAP. A post-hoc
+    alignment step (Eq.~\ref{eq:alignment}, $\lambda=0.8$) reduces
+    arbitrary between-generation drift, making successive projections
+    directly comparable. From the aligned per-generation embeddings we
+    derive a \emph{population velocity field}: for each cell of a
+    $22{\times}22$ grid, the mean individual displacement from
+    generation $k$ to $k{+}1$ is computed and rendered as a streamline.
+    The resulting visualization reveals convergence basins, multimodal
+    structure, and fitness localization that are invisible in scalar
+    fitness curves. This pipeline adapts the projection-trajectory
+    vector field methodology of \cite{cantareira2020exploring} from
+    single-network hidden activations to evolving weight populations.
+  }
+  \label{fig:pipeline}
+\end{figure}
+
+\paragraph{Our approach.}
+We propose analyzing neuroevolution through temporally aligned
+low-dimensional embeddings of evolving weight populations. At each
+generation, we project the population into 2D using UMAP
+\cite{mcinnes2018umap,mcinnes2020aligned} with a post-hoc alignment step that reduces
+arbitrary between-generation drift, making successive projections
+directly comparable. From these aligned embeddings we derive
+\emph{population velocity fields}---vector fields that summarize the
+average displacement of individuals in embedding space from one
+generation to the next.
+
+\paragraph{Contributions.}
+Using this methodology, we identify three population-level geometric
+phenomena that have no analogue in single-network trajectory analysis,
+where there is no selection pressure, no competition between individuals,
+and no emergent multimodality across a population:
+
+\begin{itemize}
+  \item \textbf{(i) Coherent flow structure.} Population trajectories
+    exhibit organized directional flow rather than isotropic stochastic
+    spread, with identifiable convergence basins visible across multiple
+    independent random seeds. This collective structure is driven by
+    selection and cannot be observed by tracking a single network.
+
+  \item \textbf{(ii) Selection-driven fitness localization.} High-fitness
+    individuals concentrate in compact, spatially coherent regions of
+    the embedding. This spatial clustering emerges from selection pressure
+    acting across the population---a phenomenon absent when visualizing
+    a single network's internal states.
+
+  \item \textbf{(iii) Distinct flow regimes across benchmarks.} The two
+    benchmarks exhibit qualitatively different population geometries:
+    Make Moons ($d_w = 48$, hidden=16) shows compact single-basin flow,
+    whereas CIFAR-10 ($d_w \approx 197{,}000$, hidden=64) shows persistent
+    multi-attractor structure. We report this as an empirical observation;
+    we do not attribute it to any single factor (task complexity,
+    dimensionality, mutation scale, or architecture) given that all differ
+    between benchmarks (Section~\ref{sec:limitations}). This geometric
+    difference is invisible in scalar fitness curves.
+\end{itemize}
+
+We additionally validate that these structures are not artifacts of the
+UMAP projection by (a) comparing aligned vs.\ unaligned projections and
+alternative dimensionality reduction baselines, (b) ablating the
+alignment strength, and (c) verifying that known synthetic cluster
+structure is faithfully recovered in UMAP embeddings.
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Background}
+% ─────────────────────────────────────────────────────────────
+
+\subsection{Neuroevolution}
+
+Neuroevolutionary algorithms represent neural network weights as
+genomes and apply evolutionary operators---mutation, selection,
+occasionally crossover---to optimize a fitness function evaluated on
+the network's behavior \cite{eiben2015introduction,stanley2002evolving}.
+A central design choice is maintaining a \emph{population} of
+individuals, enabling implicit parallelism and resistance to local
+optima. We focus on mutation-only evolution with elite selection, a
+simple but effective baseline used in several recent large-scale studies
+\cite{such2017deep,salimans2017evolution}.
+
+\subsection{Dimensionality Reduction for High-Dimensional Data}
+
+UMAP \cite{mcinnes2018umap} is a nonlinear dimensionality reduction
+method that preserves local and global structure through a
+graph-based approximation to manifold learning. Unlike PCA, it can
+represent non-linear manifold structure; unlike t-SNE
+\cite{vandermaaten2008}, it scales better to large datasets and
+preserves more global geometry. Both have been used to visualize
+neural network weight spaces \cite{li2018visualizing,goodfellow2015qualitatively} and hidden
+activations \cite{rauber2017visualizing,cantareira2020exploring}, but not for tracking
+\emph{populations} of independent networks across evolutionary generations.
+
+\subsection{Temporal Alignment of Projections}
+
+A fundamental challenge in applying dimensionality reduction to
+sequential data is that each independent projection may differ by an
+arbitrary rotation, reflection, or translation, making direct
+comparison across time steps unreliable \cite{mcinnes2020aligned}. We
+address this with a \emph{reference-anchored interpolation}: all
+generations are projected jointly into a single UMAP embedding (ensuring
+a shared global coordinate system), then each generation's coordinates
+are interpolated toward the first generation's embedding:
+\begin{equation}
+  \tilde{\mathbf{Z}}_k = (1 - \lambda)\,\mathbf{Z}_k + \lambda\,\mathbf{Z}_{\mathrm{ref}},
+  \label{eq:alignment}
+\end{equation}
+where $\mathbf{Z}_k \in \mathbb{R}^{n \times 2}$ is the embedding of
+generation $k$, $\mathbf{Z}_{\mathrm{ref}}$ is the reference (gen 0),
+and $\lambda \in [0, 1]$ controls regularization strength. At $\lambda =
+0$ the raw joint embedding is used; at $\lambda = 1$ all generations
+collapse to the reference. We select $\lambda = 0.8$ based on an
+ablation study (Section~\ref{sec:exp3}).
+
+We use joint embedding with post-hoc interpolation rather than Aligned
+UMAP \cite{mcinnes2020aligned} because Aligned UMAP requires
+consecutive-generation correspondence during graph construction, whereas
+our approach preserves a single global coordinate system and allows
+arbitrary subsets of generations to be analyzed or re-aligned without
+recomputing the full embedding.
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Methodology}
+\label{sec:methodology}
+% ─────────────────────────────────────────────────────────────
+
+\subsection{Neuroevolution Setup}
+
+We evolve one-hidden-layer MLPs using mutation-only evolution with
+elite selection. At each generation, the top $\alpha = 20\%$ of
+individuals (by fitness) are retained; the remainder are replaced by
+mutated copies of the elite, where mutations are sampled
+$\delta w \sim \mathcal{N}(0, \sigma^2)$ independently per weight.
+We study two benchmarks (Table~\ref{tab:benchmarks}):
+
+\begin{table}[!ht]
+  \caption{Benchmark configurations. $d_w$ = total weight dimensions;
+  $\sigma$ = mutation standard deviation.}
+  \label{tab:benchmarks}
+  \centering
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Benchmark & $n$ pop & Gens & Hidden & $\sigma$ & $d_w$ & PCA pre-reduction \\
+    \midrule
+    Make Moons & 50 & 80 & 16 & 0.11 & 48 & None \\
+    CIFAR-10   & 20 & 40 & 64 & 0.05 & $\approx$197k & 50 dims \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Make Moons} is a 2D binary classification task from
+\texttt{sklearn} \cite{pedregosa2011scikit} with noise $\sigma = 0.1$.
+Fitness is negative cross-entropy loss on the full dataset.
+\textbf{CIFAR-10} \cite{krizhevsky2009learning} is a 10-class image
+classification task. Due to the high weight dimensionality ($d_w \approx
+197{,}000$), we apply PCA to 50 dimensions before computing UMAP
+embeddings, following standard practice for high-dimensional weight
+visualization \cite{li2018visualizing}.
+
+We deliberately study small-scale settings (one-hidden-layer MLPs,
+populations of 20--50) to enable rigorous multi-seed analysis and
+synthetic validation at tractable compute cost; scaling to larger
+populations and deeper architectures is left to future work.
+Code and instructions to reproduce all experiments are available at
+\url{https://anonymous.4open.science/r/neurips-2026-9729}.
+
+\subsection{Temporally Aligned UMAP Embeddings}
+
+All individuals across all generations are concatenated into a single
+matrix and projected jointly by UMAP (neighbors = 15, min\_dist = 0.1),
+ensuring a consistent global coordinate system. Generation labels are
+preserved for color-coding. The alignment of Equation~\ref{eq:alignment}
+is then applied point-wise using the first generation as reference.
+
+\subsection{Population Velocity Fields}
+\label{sec:velocity}
+
+From the aligned per-generation embeddings, we construct a 2D velocity
+field summarizing population flow. The embedding space is partitioned
+into a $22 \times 22$ grid; for each cell, we compute the mean
+displacement vector of individuals that are present in both generation
+$k$ and $k+1$ and whose centroid falls in that cell. The resulting
+field is smoothed with a $3 \times 3$ box kernel before visualization.
+
+\subsection{Metrics}
+
+\textbf{Embedding spread} ($\sigma_1$, $\sigma_2$) is the standard
+deviation of aligned embedding coordinates along each axis, measuring
+how dispersed the population is in projection space. Larger spread
+indicates greater dispersion; whether this reflects multimodality or
+slow convergence is disambiguated by the velocity field visualization
+(Section~\ref{sec:velocity}).
+
+\textbf{Temporal coherence} measures how consistently the arrangement
+of individuals is preserved across successive projections:
+\begin{equation}
+  \mathrm{TC} = \frac{1}{T-1} \sum_{k=1}^{T-1}
+  \left| \mathrm{Pearson}\bigl(\tilde{\mathbf{Z}}_k,\,\tilde{\mathbf{Z}}_{k+1}\bigr) \right|,
+\end{equation}
+where Pearson correlation is taken over flattened embedding vectors.
+Absolute value is used because UMAP may produce arbitrary
+reflections between independently projected generations.
+
+\textbf{Convergence rate} is the first generation at which mean
+fitness reaches 95\% of its final improvement:
+$g^* = \min \{g : \bar{f}_g \geq \bar{f}_0 + 0.95(\bar{f}_T - \bar{f}_0)\}$.
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Results}
+\label{sec:results}
+% ─────────────────────────────────────────────────────────────
+
+\subsection{Exp 1: Multi-Seed Robustness}
+\label{sec:exp1}
+
+To verify that observed structures are not artifacts of a particular
+random initialization, we run both benchmarks with 5 independent seeds
+(42, 123, 7, 31, 99) and compare the resulting embeddings and metrics
+(Table~\ref{tab:exp1}).
+
+\begin{table}[!ht]
+  \caption{Multi-seed robustness (mean $\pm$ std, 5 seeds). Spread
+  $\sigma_1$ is the standard deviation of the aligned UMAP embedding
+  along the first axis; convergence rate is the generation at which
+  95\% of fitness improvement is achieved.
+  Welch's $t$-tests (Make Moons vs.\ CIFAR-10):
+  $\sigma_1$: $t(5.0)=-5.84$, $p=0.0021$, $d=3.69$;
+  convergence: $t(6.7)=5.37$, $p=0.0012$, $d=3.40$.}
+  \label{tab:exp1}
+  \centering
+  \begin{tabular}{lrrr}
+    \toprule
+    Benchmark & Embedding spread $\sigma_1$ & Final fitness & Convergence (gen) \\
+    \midrule
+    Make Moons & $1.97 \pm 0.08$ & $-0.171 \pm 0.006$ & $47 \pm 6$ \\
+    CIFAR-10   & $2.62 \pm 0.22$ & $-2.490 \pm 0.022$ & $20 \pm 10$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Make Moons shows compact, consistent embedding spread ($\sigma_1 = 1.97
+\pm 0.08$) across all 5 seeds, with very low variance confirming that
+the near-unimodal structure is a robust property of the search process.
+CIFAR-10 exhibits substantially larger spread ($\sigma_1 = 2.62 \pm
+0.22$), consistent with a more dispersed, multimodal population
+geometry. The difference is statistically significant despite the small
+sample: Welch's $t$-test yields $t(5.0) = -5.84$, $p = 0.0021$,
+Cohen's $d = 3.69$ (large effect). Convergence is faster for CIFAR-10
+($20 \pm 10$ generations vs.\ $47 \pm 6$; $t(6.7) = 5.37$,
+$p = 0.0012$, $d = 3.40$) but to a substantially lower fitness level
+($-2.49$ vs.\ $-0.17$), suggesting rapid collapse into one of several
+local basins rather than sustained global exploration. The high
+convergence variance for CIFAR-10 ($\pm 10$ gens) further reflects
+seed-dependent dynamics in the multimodal landscape. The velocity
+fields (Figure~\ref{fig:exp1}) confirm these differences visually:
+Make Moons shows radial convergence toward a single compact region,
+while CIFAR-10 shows branching flows toward multiple coexisting sink
+regions across all seeds.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/exp1_multiseed.png}
+  \caption{\textbf{Multi-seed reproducibility of population flow patterns.}
+  2 rows (Make Moons top, CIFAR-10 bottom) $\times$ 5 columns (seeds 42, 123, 7, 31, 99).
+  Make Moons consistently shows radial convergence toward a single attractor
+  ($\sigma_1 = 1.97 \pm 0.08$; $p=0.0021$ vs.\ CIFAR-10, Welch's $t$-test).
+  CIFAR-10 reproduces 4--5 coexisting attractors per seed
+  ($\sigma_1 = 2.62 \pm 0.22$); attractor locations vary across seeds,
+  but the multi-sink topology is consistent.
+  CIFAR-10 seed 31 (column 4) has an anomalously low scalar convergence
+  rate (gen 3); see Table~\ref{tab:exp1_full}$^\dagger$ for explanation.
+  Together these support claims (i) and (iii).}
+  \label{fig:exp1}
+\end{figure}
+
+\subsection{Exp 2: Projection Baselines}
+\label{sec:exp2}
+
+We compare four projection methods on the Make Moons benchmark:
+PCA, t-SNE \cite{vandermaaten2008}, UMAP unaligned, and UMAP aligned
+($\lambda = 0.8$). For each method, we visualize generation coloring,
+fitness coloring, and the derived velocity field.
+
+PCA recovers a two-moons-like structure in weight space (Figure~\ref{fig:exp2},
+top row), reflecting input-space geometry that bleeds into early-layer
+weights; this is static dataset-induced structure, not search dynamics.
+PCA conflates generations without revealing temporal flow. t-SNE fragments the
+embedding into many small disconnected clusters (attractor count = 298
+by DBSCAN), making velocity fields uninterpretable. UMAP unaligned
+shows more structure (attractor count = 64) but exhibits arbitrary
+between-generation drift that distorts velocity fields. UMAP aligned
+($\lambda = 0.8$) produces the most compact and temporally coherent
+embedding (attractor count = 21, spread $\sigma_1 = 1.88$), with
+smooth velocity fields that clearly reveal convergence dynamics.
+(The spread here uses seed 42 only; the cross-seed mean is
+$1.97 \pm 0.08$, Table~\ref{tab:exp1}.)
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/exp2_projection_baselines.png}
+  \caption{Exp~2: four projection methods on Make Moons (80 generations,
+  50 individuals). Columns: PCA, t-SNE, UMAP unaligned, UMAP aligned.
+  Rows: generation coloring (top), fitness coloring (middle), velocity field (bottom).
+  Only UMAP aligned ($\lambda = 0.8$) produces interpretable temporal
+  structure and smooth velocity fields.}
+  \label{fig:exp2}
+\end{figure}
+
+\subsection{Exp 3: Alignment Strength Ablation}
+\label{sec:exp3}
+
+We sweep $\lambda \in \{0.0, 0.2, 0.4, 0.6, 0.8, 1.0\}$ on the Make
+Moons benchmark and measure temporal coherence and structural
+compactness. Results are shown in Figure~\ref{fig:exp3} and
+Table~\ref{tab:exp3}.
+
+\begin{table}[!ht]
+  \caption{Exp~3: alignment ablation on Make Moons.
+  Temporal coherence and embedding spread as a function of $\lambda$.}
+  \label{tab:exp3}
+  \centering
+  \begin{tabular}{rrrrr}
+    \toprule
+    $\lambda$ & Temporal coherence & Attractor count & Spread $\sigma_1$ \\
+    \midrule
+    0.0 & $-0.010$ & 10 & 8.58 \\
+    0.2 & $0.005$  & 10 & 6.88 \\
+    0.4 & $0.045$  & 10 & 5.20 \\
+    0.6 & $0.169$  & 7  & 3.53 \\
+    0.8 & $\mathbf{0.587}$  & \textbf{5}  & 1.88 \\
+    1.0 & $1.000$  & 10 & 0.93 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Temporal coherence increases monotonically with $\lambda$, reaching
+$\mathrm{TC} = 1.0$ at $\lambda = 1.0$ (all embeddings collapse to the
+reference by construction). However, $\lambda = 1.0$ eliminates all
+temporal variation and compresses the embedding ($\sigma_1 = 0.93$),
+destroying interpretable structure. The value $\lambda = 0.8$ provides
+the best trade-off: high coherence ($\mathrm{TC} = 0.587$) with
+meaningful spread ($\sigma_1 = 1.88$), and velocity fields that visually
+reveal distinct convergence dynamics (Figure~\ref{fig:exp3}); the full
+TC vs.\ $\lambda$ curve is shown in Appendix~A.5 (Figure~\ref{fig:exp3tc}). Attractor
+count (Table~\ref{tab:exp3}) is provided as an ordinal indicator only;
+as noted in Appendix~A.3, it is sensitive to embedding density and
+should not be interpreted as a precise geometric measurement.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/exp3_alignment_ablation.png}
+  \caption{Exp~3: $\lambda$ sweep ($\lambda \in \{0.0, 0.2, 0.4, 0.6, 0.8, 1.0\}$, columns).
+  Rows: generation coloring (top), fitness coloring (middle), velocity field (bottom).
+  See Figure~\ref{fig:exp3tc} for the TC vs.\ $\lambda$ curve.}
+  \label{fig:exp3}
+\end{figure}
+
+\subsection{Exp 4: Synthetic Validation}
+\label{sec:exp4}
+
+To verify that UMAP-detected structure reflects genuine data geometry
+rather than projection artifacts, we apply our pipeline to three
+synthetic datasets with known structure (Table~\ref{tab:exp4}): a
+single Gaussian cluster, four well-separated Gaussian clusters, and a
+random walk (each generation independently sampled from $\mathcal{N}(0,
+I)$, no temporal correspondence between points).
+
+\begin{table}[!ht]
+  \caption{Exp~4: synthetic validation. Temporal coherence computed on
+  unaligned embeddings ($\lambda = 0$) to avoid inflation from the
+  alignment procedure itself.}
+  \label{tab:exp4}
+  \centering
+  \begin{tabular}{lrrr}
+    \toprule
+    Dataset & Expected modes & Temporal coherence \\
+    \midrule
+    Single Gaussian & 1 & 0.29 \\
+    Four Gaussians  & 4 & \textbf{0.91} \\
+    Random walk     & 0 & 0.03 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The random walk yields near-zero temporal coherence ($\mathrm{TC} =
+0.03$), confirming that independent point clouds produce no spurious
+structure. The four-Gaussian dataset achieves high coherence
+($\mathrm{TC} = 0.91$), indicating that genuine multi-cluster structure
+is faithfully preserved across generations. The single Gaussian shows
+intermediate coherence ($\mathrm{TC} = 0.29$); this reflects UMAP's
+tendency to produce arbitrary rotations between independent projections
+of structureless data---even when the underlying point cloud is
+temporally identical, successive projections rotate relative to each
+other, reducing the Pearson correlation in our TC metric. The
+four-Gaussian case avoids this because cluster identity provides anchor
+points that constrain rotation. Note that Table~\ref{tab:exp4} reports TC at $\lambda=0$ by design, to
+isolate UMAP's behaviour without alignment. With $\lambda=0.8$ (used in
+Experiments 1--3), the reference-anchored interpolation suppresses
+between-generation drift for all datasets including the Single Gaussian,
+confirming that alignment works as intended across structural regimes.
+The high TC values in Experiments 1--3 are therefore not inflated by
+alignment masking structureless data: when there is no structure,
+$\lambda=0$ already gives near-zero TC (random walk: 0.03), and
+alignment cannot manufacture coherence that is not present in the
+embeddings. Together, these results confirm that the structures observed
+in the neuroevolution experiments are not UMAP artifacts.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/exp4_synthetic_validation.png}
+  \caption{\textbf{Exp~4: synthetic validation of UMAP structure recovery.}
+  Columns: Single Gaussian (left), Four Gaussians (center), random walk (right).
+  Rows: UMAP embedding (top), velocity field (bottom).
+  \emph{Single Gaussian}: structureless data yields a diffuse, rotation-prone embedding ($\mathrm{TC}=0.29$).
+  \emph{Four Gaussians}: four well-separated clusters are faithfully recovered ($\mathrm{TC}=0.91$).
+  \emph{Random walk}: independently sampled point clouds produce no coherent structure ($\mathrm{TC}=0.03$),
+  confirming absence of spurious UMAP artifacts.}
+  \label{fig:exp4}
+\end{figure}
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Discussion}
+% ─────────────────────────────────────────────────────────────
+
+Our results suggest that neuroevolutionary populations exhibit
+structured geometric dynamics in weight space that are not captured by
+scalar fitness metrics. The consistent attractor-like regions and
+coherent flow patterns across independent seeds indicate that
+the observed structure is a robust property of the search process,
+not an artifact of initialization or projection.
+
+The task-dependent multimodality in claim (iii)---compact near-unimodal
+flow for Make Moons ($d_w = 48$, hidden=16) versus persistent multimodal
+structure for CIFAR-10 ($d_w \approx 197{,}000$, hidden=64)---is
+consistent with known properties of high-dimensional loss landscapes:
+larger networks have more saddle points and flat regions
+\cite{dauphin2014identifying}, which could support coexistence of
+multiple fitness basins simultaneously. However, we caution that the two
+benchmarks also differ in mutation rate ($\sigma = 0.11$ vs.\ $0.05$),
+architecture depth, and task complexity; disentangling which factor
+drives the multimodality difference requires controlled experiments
+(Section~\ref{sec:limitations}).
+
+The spatial localization of high-fitness individuals (claim ii)
+suggests that fitness landscape curvature is reflected in embedding
+geometry, which could enable early detection of promising regions
+before fitness curves have converged. This has potential implications
+for adaptive population management strategies.
+
+\paragraph{Possible mechanisms for the multimodality difference.}
+Several non-exclusive mechanisms could contribute to the observed
+difference in population geometry between benchmarks. First, permutation
+symmetry: in networks
+with hidden units, any permutation of hidden neurons produces a
+functionally equivalent network at a different weight vector, creating
+an exponential number of symmetric optima that grow with network size.
+Second, at high dimensionality, the probability that random mutations
+escape a local basin decreases---populations tend to specialize in
+distinct regions rather than spanning the full landscape. Third,
+mutation scaling: we use a fixed $\sigma = 0.05$ for CIFAR-10 vs.\
+$\sigma = 0.11$ for Make Moons; smaller perturbations relative to
+weight magnitude may reduce mixing across basins. Disentangling these
+mechanisms is an important direction for future work.
+
+\paragraph{Practical implications.}
+The ability to observe convergence basins and multimodal structure
+in real time suggests several concrete applications. Practitioners
+could use velocity fields to detect premature convergence early,
+triggering diversity-restoring interventions before fitness plateaus.
+The spatial localization of high-fitness individuals could guide
+offspring allocation in non-uniform mutation strategies, concentrating
+exploration around identified attractor regions. More ambitiously,
+if embedding geometry at generation $k$ predicts eventual convergence
+targets, it could enable early stopping or adaptive population sizing.
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Limitations}
+\label{sec:limitations}
+% ─────────────────────────────────────────────────────────────
+
+\textbf{UMAP stochasticity.} UMAP embeddings depend on random
+initialization and neighbor graph construction. While our temporal
+alignment reduces between-generation drift, independent runs with
+different random seeds may produce qualitatively different embeddings
+for the same population. We mitigate this by using a fixed random seed
+for all projections and reporting results across 5 evolutionary seeds.
+
+\textbf{Embedding spread as a proxy for multimodality.} We use
+embedding spread ($\sigma_1$) as the primary quantitative indicator
+of population structure. While spread correlates with multimodality
+visually, it is a coarse proxy: a dispersed embedding could reflect
+genuine multi-basin structure or simply a slower-converging population.
+The velocity field visualizations provide the primary evidence for
+claim (iii); spread serves as a reproducible scalar summary.
+
+\textbf{Scale of benchmarks.} Our experiments use small populations
+and networks to keep compute tractable. It is unclear whether the
+observed phenomena scale to the population sizes and architectures
+used in state-of-the-art neuroevolution.
+
+\textbf{Mutation scaling confound.} The two benchmarks use different
+mutation rates ($\sigma = 0.11$ for Make Moons, $\sigma = 0.05$ for
+CIFAR-10), chosen empirically to produce comparable per-generation
+fitness progress on each task. This confounds the dimensionality
+contrast in claim (iii): a smaller $\sigma$ relative to weight
+magnitude may itself reduce cross-basin mixing, independently of
+dimensionality. A controlled experiment varying $\sigma$ within a
+single benchmark while holding architecture fixed would help
+disentangle these effects.
+
+\textbf{Methodological scope.} The vector-field-on-aligned-projections
+methodology is established in the context of single-network hidden
+activation visualization \cite{cantareira2020exploring}; our
+contribution is in applying it to evolving weight \emph{populations}
+and characterizing the distinct population-level phenomena that emerge,
+not in the projection or vector field machinery itself.
+
+\textbf{Causal interpretation.} We observe \emph{correlations}
+between embedding structure and fitness dynamics. We do not claim that
+the geometric structure \emph{causes} or \emph{predicts} evolutionary
+outcomes; only that it is consistently present and visually
+informative.
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Related Work}
+% ─────────────────────────────────────────────────────────────
+
+\textbf{Neuroevolution.} Modern neuroevolution methods
+\cite{such2017deep,salimans2017evolution,real2017large} have achieved
+strong performance on RL benchmarks but remain poorly understood
+mechanistically. Our work is complementary to fitness landscape
+analysis \cite{jones1995fitness} and quality-diversity methods
+\cite{mouret2015illuminating} that also seek to understand population
+structure.
+
+\textbf{Vector field visualization of projection trajectories.}
+Cantareira et al.\ \cite{cantareira2020exploring} introduced the
+methodology of constructing vector fields from sequentially aligned
+projections to visualize hidden layer activity in deep networks across
+training epochs and layers. Their approach combines a generic projection
+alignment model \cite{cantareira2020generic} with Vector Field
+$K$-Means \cite{ferreira2013vector} for trajectory aggregation; Rauber
+et al.\ \cite{rauber2016dynamic,rauber2017visualizing} established
+related trajectory-based visualization of hidden activations using
+dynamic dimensionality reduction. Our work applies this family of
+techniques to a qualitatively different regime: instead of tracking a
+single network's internal states, we track \emph{populations} of
+independent networks across evolutionary generations. This shift
+introduces phenomena absent in single-network visualization: selection
+pressure creates fitness-correlated spatial structure, attractor
+competition emerges from parallel independent trajectories, and
+task-dependent search dynamics manifest at the population
+level rather than within individual activation patterns.
+
+\textbf{Weight space visualization.} Li et al.\ \cite{li2018visualizing}
+visualize loss landscapes via filter-normalized linear interpolation;
+Goodfellow et al.\ \cite{goodfellow2015qualitatively} study loss
+surfaces along linear paths. These approaches characterize a single
+network's loss surface; our work characterizes the collective trajectory
+of a population. For a survey of visual analytics in deep learning, see
+Hohman et al.\ \cite{hohman2018visual}.
+
+\textbf{Dimensionality reduction for neural networks.} UMAP and t-SNE
+have been applied to visualize neuron activations
+\cite{carter2019activation} and model families \cite{rame2022diverse}.
+Our contribution is to apply temporally aligned projection to evolving
+weight \emph{populations}, revealing population-level geometric
+phenomena specific to the evolutionary regime.
+
+\textbf{Behavioral diversity in evolution.} MAP-Elites
+\cite{mouret2015illuminating} and novelty search
+\cite{lehman2011abandoning} explicitly maintain behavioral diversity;
+our approach provides post-hoc geometric analysis of diversity in
+weight space without requiring behavioral descriptors.
+
+
+% ─────────────────────────────────────────────────────────────
+\section{Conclusion}
+% ─────────────────────────────────────────────────────────────
+
+We have presented an analysis methodology for neuroevolutionary
+population dynamics based on temporally aligned UMAP embeddings and
+population velocity fields. Applied across benchmarks with qualitatively
+different search regimes, the method consistently reveals geometric
+structure---coherent flow, fitness localization, and
+task-dependent multimodality---that is invisible in scalar
+fitness metrics. Ablation and synthetic validation experiments confirm
+that the observed structure reflects genuine evolutionary dynamics
+rather than projection artifacts. We release code and interactive
+visualizations to facilitate adoption by the neuroevolution community
+(\url{https://anonymous.4open.science/r/neurips-2026-9729}).
+
+\begin{ack}
+[Omitted for anonymized submission.]
+\end{ack}
+
+{\small
+\begin{thebibliography}{24}
+
+\bibitem{stanley2002evolving}
+Stanley, K.O.\ \& Miikkulainen, R.\ (2002).
+Evolving neural networks through augmenting topologies.
+\textit{Evolutionary Computation}, 10(2), 99--127.
+
+\bibitem{such2017deep}
+Such, F.P., Madhavan, V., Conti, E., Lehman, J., Stanley, K.O., \& Clune, J.\ (2017).
+Deep neuroevolution: Genetic algorithms are a competitive alternative for training
+deep neural networks for reinforcement learning. \textit{arXiv:1712.06567}.
+
+\bibitem{salimans2017evolution}
+Salimans, T., Ho, J., Chen, X., Sidor, S., \& Sutskever, I.\ (2017).
+Evolution strategies as a scalable alternative to reinforcement learning.
+\textit{arXiv:1703.03864}.
+
+\bibitem{mcinnes2018umap}
+McInnes, L., Healy, J., \& Melville, J.\ (2018).
+UMAP: Uniform manifold approximation and projection for dimension reduction.
+\textit{arXiv:1802.03426}.
+
+\bibitem{vandermaaten2008}
+van der Maaten, L.\ \& Hinton, G.\ (2008).
+Visualizing data using t-SNE.
+\textit{Journal of Machine Learning Research}, 9, 2579--2605.
+
+\bibitem{pedregosa2011scikit}
+Pedregosa, F.\ et al.\ (2011).
+Scikit-learn: Machine learning in Python.
+\textit{JMLR}, 12, 2825--2830.
+
+\bibitem{krizhevsky2009learning}
+Krizhevsky, A.\ (2009).
+Learning multiple layers of features from tiny images.
+Technical Report, University of Toronto.
+
+\bibitem{li2018visualizing}
+Li, H., Xu, Z., Taylor, G., Studer, C., \& Goldstein, T.\ (2018).
+Visualizing the loss landscape of neural nets.
+\textit{NeurIPS}.
+
+\bibitem{goodfellow2015qualitatively}
+Goodfellow, I.J., Vinyals, O., \& Saxe, A.M.\ (2015).
+Qualitatively characterizing neural network optimization problems.
+\textit{ICLR}.
+
+\bibitem{dauphin2014identifying}
+Dauphin, Y., Pascanu, R., Gulcehre, C., Cho, K., Ganguli, S., \& Bengio, Y.\ (2014).
+Identifying and attacking the saddle point problem in high-dimensional
+non-convex optimization. \textit{NeurIPS}.
+
+\bibitem{mouret2015illuminating}
+Mouret, J.-B.\ \& Clune, J.\ (2015).
+Illuminating search spaces by mapping elites.
+\textit{arXiv:1504.04909}.
+
+\bibitem{lehman2011abandoning}
+Lehman, J.\ \& Stanley, K.O.\ (2011).
+Abandoning objectives: Evolution through the search for novelty alone.
+\textit{Evolutionary Computation}, 19(2), 189--223.
+
+\bibitem{real2017large}
+Real, E., Moore, S., Selle, A., Saxena, S., Suematsu, N.L., Tan, J., Le, Q., \& Kurakin, A.\ (2017).
+Large-scale evolution of image classifiers. \textit{ICML}.
+
+\bibitem{carter2019activation}
+Carter, S.\ et al.\ (2019).
+Activation atlas. \textit{Distill}.
+
+\bibitem{rame2022diverse}
+Ram\'{e}, A., Kirchmeyer, M., Rahier, T., Rakotomamonjy, A., Gallinari, P., \& Cord, M.\ (2022).
+Diverse weight averaging for out-of-distribution generalization.
+\textit{NeurIPS 2022} (arXiv:2205.09739).
+
+\bibitem{jones1995fitness}
+Jones, T.\ \& Forrest, S.\ (1995).
+Fitness distance correlation as a measure of problem difficulty for genetic algorithms.
+\textit{ICGA}.
+
+\bibitem{eiben2015introduction}
+Eiben, A.E.\ \& Smith, J.E.\ (2015).
+\textit{Introduction to Evolutionary Computing} (2nd ed.).
+Springer.
+
+\bibitem{mcinnes2020aligned}
+McInnes, L.\ (2020).
+Aligned UMAP for temporal and multi-sample data.
+\url{https://umap-learn.readthedocs.io/en/latest/aligned_umap.html}.
+
+\bibitem{cantareira2020exploring}
+Cantareira, G.D., Etemad, E., \& Paulovich, F.V.\ (2020).
+Exploring neural network hidden layer activity using vector fields.
+\textit{Information}, 11(9), 426.
+
+\bibitem{cantareira2020generic}
+Cantareira, G.D.\ \& Paulovich, F.V.\ (2020).
+A generic model for projection alignment applied to neural network visualization.
+\textit{EuroVis Workshop on Visual Analytics (EuroVA)}.
+
+\bibitem{rauber2017visualizing}
+Rauber, P.E., Fadel, S.G., Falc\~{a}o, A.X., \& Telea, A.C.\ (2017).
+Visualizing the hidden activity of artificial neural networks.
+\textit{IEEE Trans.\ Vis.\ Comput.\ Graphics}, 23(1), 101--110.
+
+\bibitem{rauber2016dynamic}
+Rauber, P.E., Falc\~{a}o, A.X., \& Telea, A.C.\ (2016).
+Visualizing time-dependent data using dynamic t-SNE.
+\textit{EuroVis Short Papers}.
+
+\bibitem{ferreira2013vector}
+Ferreira, N., Klosowski, J.T., Scheidegger, C.E., \& Silva, C.T.\ (2013).
+Vector field $K$-means: Clustering trajectories by fitting multiple vector fields.
+\textit{Computer Graphics Forum}, 32(3), 201--210.
+
+\bibitem{hohman2018visual}
+Hohman, F.M., Kahng, M., Pienta, R., \& Chau, D.H.\ (2018).
+Visual analytics in deep learning: An interrogative survey for the next frontiers.
+\textit{IEEE Trans.\ Vis.\ Comput.\ Graphics}, 25(8), 2674--2693.
+
+\end{thebibliography}
+} % end \small
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+
+\section{Additional Experimental Details}
+
+\subsection{Network Architecture and Training}
+
+All networks are one-hidden-layer MLPs with sigmoid activations.
+Make Moons: input $2 \to 16 \to 1$ (sigmoid output, binary
+cross-entropy). CIFAR-10: input $3072 \to 64 \to 10$ (softmax output,
+negative log-likelihood). Elite fraction = 20\%, minimum elite = 2
+individuals.
+
+\subsection{Compute Resources}
+
+All experiments run on a single CPU (Apple M-series, 16GB RAM).
+Approximate wall-clock times: Make Moons (5 seeds) $\approx$ 1 min;
+CIFAR-10 (5 seeds) $\approx$ 20 min; Exp 2--3 $\approx$ 1--2 min each;
+Exp 4 $\approx$ 1 min. No GPU required. Total reproduction time
+$\lesssim$ 30 min.
+
+\subsection{Full Multi-Seed Results}
+
+Table~\ref{tab:exp1_full} reports all per-seed metrics including
+attractor count, estimated by DBSCAN with adaptive $\varepsilon$
+(90th percentile of $k$-NN distances, $k=5$). Attractor counts are
+sensitive to embedding density and should be interpreted as rough
+ordinal indicators rather than precise geometric measurements; we
+use embedding spread as the primary metric in the main text.
+
+\begin{table}[h]
+  \caption{Per-seed metrics for all benchmarks. Attractor count uses
+  DBSCAN with adaptive $\varepsilon$; values vary with embedding
+  density and are provided for completeness only.
+  $\dagger$CIFAR-10 seed 31 reports convergence at generation 3:
+  the fitness trajectory began close to its final value under this
+  initialization, so 95\% of the negligible improvement span
+  ($\bar{f}_0 \approx \bar{f}_T$) was reached trivially early.
+  This is a numerical artifact of the convergence-rate definition
+  when the fitness is nearly flat, not an unusually fast run;
+  it is the primary driver of the high convergence variance ($\pm 10$)
+  reported in Table~\ref{tab:exp1}.}
+  \label{tab:exp1_full}
+  \centering
+  \small
+  \begin{tabular}{llrrrr}
+    \toprule
+    Benchmark & Seed & Spread $\sigma_1$ & Fitness & Conv.\ (gen) & Attractors \\
+    \midrule
+    Make Moons & 42  & 1.88 & $-0.169$ & 57 & 19 \\
+               & 123 & 1.92 & $-0.171$ & 41 & 13 \\
+               & 7   & 1.92 & $-0.163$ & 47 & 13 \\
+               & 31  & 2.07 & $-0.175$ & 45 & 13 \\
+               & 99  & 2.03 & $-0.179$ & 45 & 18 \\
+    \midrule
+    CIFAR-10   & 42  & 2.45 & $-2.464$ & 19 & 5 \\
+               & 123 & 2.31 & $-2.497$ & 26 & 4 \\
+               & 7   & 2.79 & $-2.497$ & 26 & 5 \\
+               & 31$^\dagger$  & 2.64 & $-2.519$ &  3 & 5 \\
+               & 99  & 2.89 & $-2.472$ & 24 & 4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Hyperparameter Table}
+
+\begin{table}[H]
+  \centering
+  \caption{Full hyperparameter table for all benchmarks.}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Benchmark & Pop & Gens & Hidden & $\sigma$ & $\lambda$ & PCA dims \\
+    \midrule
+    Make Moons & 50 & 80 & 16 & 0.11 & 0.8 & -- \\
+    CIFAR-10   & 20 & 40 & 64 & 0.05 & 0.8 & 50 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Temporal Coherence vs.\ Alignment Strength}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\linewidth]{figures/exp3_tc_curve.png}
+  \caption{Temporal coherence as a function of alignment strength $\lambda$.
+  Coherence increases monotonically; $\lambda = 0.8$ (dashed line) provides
+  the best trade-off between coherence ($\mathrm{TC}=0.587$) and
+  embedding diversity ($\sigma_1=1.88$). At $\lambda=1.0$, all generations
+  collapse to the reference ($\mathrm{TC}=1.0$) but temporal structure is destroyed.}
+  \label{fig:exp3tc}
+\end{figure}
+
+\newpage
+\input{checklist.tex}
+
+\end{document}

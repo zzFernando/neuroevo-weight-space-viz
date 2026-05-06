@@ -29,6 +29,7 @@ def plot(
     norm_mode: str = "power",
     gamma: float = 0.3,
     fitness_bins: int = 31,
+    pca_dims=None,
 ):
     """
     Plot aligned UMAP projections for all generations with two panels:
@@ -36,7 +37,7 @@ def plot(
     - colored by fitness
     """
     embedding, gen_labels, _ = compute_aligned_umap_embedding(
-        weights_by_gen, lambda_align=lambda_align, random_state=random_state
+        weights_by_gen, lambda_align=lambda_align, random_state=random_state, pca_dims=pca_dims
     )
 
     if len(fitness_by_gen) != len(weights_by_gen):
@@ -88,12 +89,13 @@ def plot_interactive(
     norm_mode: str = "power",
     gamma: float = 0.3,
     fitness_bins: int = 31,
+    pca_dims=None,
 ):
     """
     Interactive Plotly version of the aligned UMAP scatter plots.
     """
     embedding, gen_labels, _ = compute_aligned_umap_embedding(
-        weights_by_gen, lambda_align=lambda_align, random_state=random_state
+        weights_by_gen, lambda_align=lambda_align, random_state=random_state, pca_dims=pca_dims
     )
     fitness_concat = np.concatenate(fitness_by_gen) if fitness_by_gen else np.array([])
 

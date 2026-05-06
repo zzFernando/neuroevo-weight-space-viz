@@ -1,0 +1,85 @@
+\section*{NeurIPS Paper Checklist}
+
+\begin{enumerate}
+
+\item {\bf Claims}
+    \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The abstract and introduction state three observational claims (coherent flow, fitness localization, distinct flow regimes across benchmarks) that are directly supported by the experiments in Section~4. All claims are framed as empirical observations with appropriate hedging (``we observe,'' ``suggests,'' ``consistent with''), not as theoretical guarantees. The scope is explicitly limited to the two benchmarks described.
+
+\item {\bf Limitations}
+    \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~6 (Limitations) discusses six explicit limitations: UMAP stochasticity and sensitivity to initialization; the use of embedding spread as a coarse proxy for multimodality; the small scale of benchmarks and populations; a mutation-scaling confound between the two benchmarks; the methodological scope (established methodology applied to a new domain); and the observational (non-causal) nature of the findings.
+
+\item {\bf Theory assumptions and proofs}
+    \item[] Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The paper makes no theoretical claims and presents no proofs. All contributions are empirical observations.
+
+\item {\bf Experimental result reproducibility}
+    \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~3 and Appendix~A describe all hyperparameters, network architectures, UMAP settings ($k=15$, min\_dist$=0.1$), alignment procedure (Equation~1), and metric definitions. The full hyperparameter table is provided in Appendix~A.3. Code is released with the submission.
+
+\item {\bf Open access to data and code}
+    \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Code is provided as anonymized supplemental material. All benchmarks use publicly available datasets: Make Moons (scikit-learn), CIFAR-10 (Toronto/Krizhevsky 2009). A \texttt{pixi.toml} environment file and \texttt{README} are included for one-command environment setup.
+
+\item {\bf Experimental setting/details}
+    \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~3.1 and Table~1 specify population sizes, generations, hidden dimensions, mutation rates, and PCA pre-reduction. There is no gradient-based training; the optimizer is mutation-only evolution with elite selection ($\alpha=20\%$). Appendix~A.3 provides the full hyperparameter table for both benchmarks.
+
+\item {\bf Experiment statistical significance}
+    \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Table~2 (Exp~1) reports mean $\pm$ standard deviation across 5 independent random seeds. Welch's $t$-tests between Make Moons and CIFAR-10 are reported in the Table~2 caption and body text: embedding spread $\sigma_1$: $t(5.0)=-5.84$, $p=0.0021$, Cohen's $d=3.69$; convergence rate: $t(6.7)=5.37$, $p=0.0012$, $d=3.40$. The small sample size ($n=5$) is acknowledged as a limitation in Section~6.
+
+\item {\bf Experiments compute resources}
+    \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Appendix~A.2 reports that all experiments run on a single CPU (Apple M-series, 16\,GB RAM) with approximate wall-clock times per experiment. No GPU is required. Total reproduction time is under 30 minutes.
+
+\item {\bf Code of ethics}
+    \item[] Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: This paper presents a visualization and analysis methodology for neuroevolutionary algorithms. It poses no risks related to privacy, fairness, security, or misuse. All datasets used are standard academic benchmarks.
+
+\item {\bf Broader impacts}
+    \item[] Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: This is a foundational methods paper for analyzing optimization dynamics. It introduces no new models, does not enable new applications, and has no plausible direct path to negative societal impact. The methodology could help researchers better understand and debug neuroevolutionary systems, which is a positive contribution to scientific transparency.
+
+\item {\bf Safeguards}
+    \item[] Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The paper releases only analysis code and visualization tools operating on standard academic benchmarks. No pretrained models with misuse potential are released.
+
+\item {\bf Licenses for existing assets}
+    \item[] Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: scikit-learn \cite{pedregosa2011scikit} (BSD 3-Clause), CIFAR-10 \cite{krizhevsky2009learning} (MIT/public research use), UMAP \cite{mcinnes2018umap} (BSD 3-Clause). All are cited in the paper and their licenses permit academic use.
+
+\item {\bf New assets}
+    \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The released codebase includes a \texttt{README} with installation instructions, usage examples, and descriptions of each module. An interactive Streamlit application is included for exploratory visualization.
+
+\item {\bf Crowdsourcing and research with human subjects}
+    \item[] Question: For crowdsourcing experiments and research with human subjects, does the paper include the full text of instructions given to participants and screenshots, if applicable, as well as details about compensation (if any)?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: This paper involves no crowdsourcing or human subjects.
+
+\item {\bf Institutional review board (IRB) approvals or equivalent for research with human subjects}
+    \item[] Question: Does the paper describe potential risks incurred by study participants, whether such risks were disclosed to the subjects, and whether Institutional Review Board (IRB) approvals (or an equivalent approval/review based on the requirements of your country or institution) were obtained?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: No human subjects were involved in this research.
+
+\item {\bf Declaration of LLM usage}
+    \item[] Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: LLMs were not used as a component of the research methodology. They were used only for writing assistance, which does not require declaration per NeurIPS policy.
+
+\end{enumerate}

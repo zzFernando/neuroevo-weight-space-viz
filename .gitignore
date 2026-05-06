@@ -206,5 +206,20 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Results directory
+# Project-specific
 results/
+cache/
+errors.log
+experiments/log_*.txt
+experiments/run_log.txt
+
+# LaTeX build artifacts
+*.aux
+*.out
+*.log
+
+# macOS
+.DS_Store
+
+# Supplementary zip
+supplementary.zip

@@ -164,6 +164,7 @@ def _prepare_bundled_data(
 
     fitness_matrix = np.vstack([f[keep_idx] for f in fitness_by_gen])
     traj_fitness_final = fitness_matrix[-1]  # fitness final por trajetória selecionada
+    traj_fitness = traj_fitness_final
 
     # Representatives: pick one trajectory per cluster (highest fitness in cluster)
     if show_representatives_only and cluster_labels is not None:
@@ -180,6 +181,7 @@ def _prepare_bundled_data(
         bundled_smooth = np.stack(reps) if reps else bundled_smooth
         cluster_labels = np.array(rep_labels) if reps else cluster_labels
         traj_fitness = np.array(rep_fitness) if reps else traj_fitness
+        traj_fitness_final = np.array(rep_fitness) if reps else traj_fitness_final
 
     # Optionally keep only top-k trajectories by fitness
     if show_top_k and top_k:
@@ -187,6 +189,7 @@ def _prepare_bundled_data(
         order_top = np.argsort(traj_fitness)[::-1][:top_k]
         bundled_smooth = bundled_smooth[order_top]
         traj_fitness_final = traj_fitness_final[order_top]
+        traj_fitness = traj_fitness[order_top]
         if cluster_labels is not None:
             cluster_labels = cluster_labels[order_top]
 
