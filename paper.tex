@@ -553,6 +553,32 @@ exploration around identified attractor regions. More ambitiously,
 if embedding geometry at generation $k$ predicts eventual convergence
 targets, it could enable early stopping or adaptive population sizing.
 
+\paragraph{Motivation.}
+The case for analyzing neuroevolutionary search at the population
+level is reinforced by recent evidence that evolutionary optimization
+of neural networks is not merely a slower, gradient-free analogue of
+stochastic gradient descent but a qualitatively distinct procedure
+that can produce qualitatively distinct solutions. Lehman et al.\
+\cite{lehman2018es} show that evolution strategies optimize for the
+average reward of the entire perturbed population rather than the
+reward gradient at a point, channeling search into regions of
+parameter space that yield networks with different properties (in
+their case, greater robustness to perturbation) than those reached by
+policy gradients on the same task. More recently, Kumar et al.\
+\cite{kumar2025fractured} argue that conventional SGD tends to learn
+\emph{fractured, entangled} internal representations, whereas
+open-ended evolutionary search can yield more unified, factored
+representations even when the two procedures match on output
+behavior. Together, these results suggest that population-based
+neuroevolution explores the loss landscape in ways that gradient-based
+training does not, and that the relevant structure---multimodality,
+basin coexistence, robustness-seeking flow---lives in the geometry of
+the population, not in any single network's trajectory. Scalar
+fitness curves cannot resolve this geometry. The visualization
+methodology we develop here is intended as a step toward a tooling
+gap that, given how differently neuroevolution behaves from SGD,
+seems increasingly worth closing.
+
 
 % ─────────────────────────────────────────────────────────────
 \section{Limitations}
@@ -645,9 +671,21 @@ Hohman et al.\ \cite{hohman2018visual}.
 \textbf{Dimensionality reduction for neural networks.} UMAP and t-SNE
 have been applied to visualize neuron activations
 \cite{carter2019activation} and model families \cite{rame2022diverse}.
-Our contribution is to apply temporally aligned projection to evolving
-weight \emph{populations}, revealing population-level geometric
-phenomena specific to the evolutionary regime.
+Closer to our temporal setting, Grisci et al.\ \cite{grisci2025assessing}
+propose \emph{weighted t-SNE}, a feature-importance-weighted variant
+of t-SNE that can be applied at successive training epochs to visualize
+how a single neural network reshapes its data representation as the
+learned feature scores evolve. Our work differs in two key respects:
+(i) we track a \emph{population} of independent networks rather than
+a single model, so the structures we observe (multimodality, attractor
+competition, fitness localization) emerge from selection pressure
+across the population rather than from gradient-based learning of
+one network's feature weights; and (ii) our temporal axis is
+evolutionary generations rather than training epochs, with no
+per-individual continuity of parameters across selection events.
+Our contribution is therefore to apply temporally aligned projection
+to evolving weight \emph{populations}, revealing population-level
+geometric phenomena specific to the evolutionary regime.
 
 \textbf{Behavioral diversity in evolution.} MAP-Elites
 \cite{mouret2015illuminating} and novelty search
