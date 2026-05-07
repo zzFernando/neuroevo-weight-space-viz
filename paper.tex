@@ -94,14 +94,11 @@ simultaneously exploring multiple disconnected fitness peaks.
 
 \paragraph{Our approach.}
 We propose analyzing neuroevolution through temporally aligned
-low-dimensional embeddings of evolving weight populations. At each
-generation, we project the population into 2D using UMAP
-\cite{mcinnes2018umap,mcinnes2020aligned} with a post-hoc alignment step that reduces
-arbitrary between-generation drift, making successive projections
-directly comparable. From these aligned embeddings we derive
-\emph{population velocity fields}---vector fields that summarize the
-average displacement of individuals in embedding space from one
-generation to the next.
+low-dimensional embeddings of evolving weight populations, projecting
+each generation into 2D via UMAP \cite{mcinnes2018umap,mcinnes2020aligned}
+with a post-hoc alignment step, then deriving \emph{population velocity
+fields} that summarize average individual displacement across generations
+(Section~\ref{sec:methodology}).
 
 \paragraph{Contributions.}
 Using this methodology, we identify three population-level geometric
@@ -184,17 +181,14 @@ are interpolated toward the first generation's embedding:
 \end{equation}
 where $\mathbf{Z}_k \in \mathbb{R}^{n \times 2}$ is the embedding of
 generation $k$, $\mathbf{Z}_{\mathrm{ref}}$ is the reference (gen 0),
-and $\lambda \in [0, 1]$ controls regularization strength. At $\lambda =
-0$ the raw joint embedding is used; at $\lambda = 1$ all generations
-collapse to the reference. We select $\lambda = 0.8$ based on an
-ablation study (Section~\ref{sec:exp3}).
+and $\lambda \in [0, 1]$ controls alignment strength ($\lambda=0$: raw
+embedding; $\lambda=1$: collapse to reference). We set $\lambda = 0.8$
+based on an ablation study (Section~\ref{sec:exp3}).
 
 We use joint embedding with post-hoc interpolation rather than Aligned
-UMAP \cite{mcinnes2020aligned} because Aligned UMAP requires
-consecutive-generation correspondence during graph construction, whereas
-our approach preserves a single global coordinate system and allows
-arbitrary subsets of generations to be analyzed or re-aligned without
-recomputing the full embedding.
+UMAP \cite{mcinnes2020aligned} because it preserves a single global
+coordinate system without requiring consecutive-generation correspondence
+during graph construction.
 
 
 % ─────────────────────────────────────────────────────────────
@@ -530,17 +524,12 @@ for adaptive population management strategies.
 \paragraph{Possible mechanisms for the multimodality difference.}
 Several non-exclusive mechanisms could contribute to the observed
 difference in population geometry between benchmarks. First, permutation
-symmetry: in networks
-with hidden units, any permutation of hidden neurons produces a
-functionally equivalent network at a different weight vector, creating
-an exponential number of symmetric optima that grow with network size.
-Second, at high dimensionality, the probability that random mutations
-escape a local basin decreases---populations tend to specialize in
-distinct regions rather than spanning the full landscape. Third,
-mutation scaling: we use a fixed $\sigma = 0.05$ for CIFAR-10 vs.\
-$\sigma = 0.11$ for Make Moons; smaller perturbations relative to
-weight magnitude may reduce mixing across basins. Disentangling these
-mechanisms is an important direction for future work.
+symmetry: any permutation of hidden neurons produces a functionally
+equivalent network at a different weight vector, creating exponentially
+many symmetric optima that grow with network size. Second, mutation
+scaling: smaller perturbations ($\sigma=0.05$ for CIFAR-10 vs.\
+$\sigma=0.11$ for Make Moons) relative to weight magnitude may reduce
+basin mixing. Disentangling these mechanisms is left for future work.
 
 \paragraph{Practical implications.}
 The ability to observe convergence basins and multimodal structure
