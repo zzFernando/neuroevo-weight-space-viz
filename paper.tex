@@ -16,6 +16,7 @@
 \usepackage{xcolor}
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage[]{natbib}
 
 \title{Beyond Fitness Curves: Visualizing Population Dynamics\\in Neuroevolutionary Search}
 
@@ -164,7 +165,7 @@ represent non-linear manifold structure; unlike t-SNE
 \cite{vandermaaten2008}, it scales better to large datasets and
 preserves more global geometry. Both have been used to visualize
 neural network weight spaces \cite{li2018visualizing,goodfellow2015qualitatively} and hidden
-activations \cite{rauber2017visualizing,cantareira2020exploring}, but not for tracking
+activations \cite{rauber2017visualizing,cantareira2020exploring, grisci2025assessing}, but not for tracking
 \emph{populations} of independent networks across evolutionary generations.
 
 \subsection{Temporal Alignment of Projections}
@@ -675,129 +676,8 @@ visualizations to facilitate adoption by the neuroevolution community
 [Omitted for anonymized submission.]
 \end{ack}
 
-{\small
-\begin{thebibliography}{24}
-
-\bibitem{stanley2002evolving}
-Stanley, K.O.\ \& Miikkulainen, R.\ (2002).
-Evolving neural networks through augmenting topologies.
-\textit{Evolutionary Computation}, 10(2), 99--127.
-
-\bibitem{such2017deep}
-Such, F.P., Madhavan, V., Conti, E., Lehman, J., Stanley, K.O., \& Clune, J.\ (2017).
-Deep neuroevolution: Genetic algorithms are a competitive alternative for training
-deep neural networks for reinforcement learning. \textit{arXiv:1712.06567}.
-
-\bibitem{salimans2017evolution}
-Salimans, T., Ho, J., Chen, X., Sidor, S., \& Sutskever, I.\ (2017).
-Evolution strategies as a scalable alternative to reinforcement learning.
-\textit{arXiv:1703.03864}.
-
-\bibitem{mcinnes2018umap}
-McInnes, L., Healy, J., \& Melville, J.\ (2018).
-UMAP: Uniform manifold approximation and projection for dimension reduction.
-\textit{arXiv:1802.03426}.
-
-\bibitem{vandermaaten2008}
-van der Maaten, L.\ \& Hinton, G.\ (2008).
-Visualizing data using t-SNE.
-\textit{Journal of Machine Learning Research}, 9, 2579--2605.
-
-\bibitem{pedregosa2011scikit}
-Pedregosa, F.\ et al.\ (2011).
-Scikit-learn: Machine learning in Python.
-\textit{JMLR}, 12, 2825--2830.
-
-\bibitem{krizhevsky2009learning}
-Krizhevsky, A.\ (2009).
-Learning multiple layers of features from tiny images.
-Technical Report, University of Toronto.
-
-\bibitem{li2018visualizing}
-Li, H., Xu, Z., Taylor, G., Studer, C., \& Goldstein, T.\ (2018).
-Visualizing the loss landscape of neural nets.
-\textit{NeurIPS}.
-
-\bibitem{goodfellow2015qualitatively}
-Goodfellow, I.J., Vinyals, O., \& Saxe, A.M.\ (2015).
-Qualitatively characterizing neural network optimization problems.
-\textit{ICLR}.
-
-\bibitem{dauphin2014identifying}
-Dauphin, Y., Pascanu, R., Gulcehre, C., Cho, K., Ganguli, S., \& Bengio, Y.\ (2014).
-Identifying and attacking the saddle point problem in high-dimensional
-non-convex optimization. \textit{NeurIPS}.
-
-\bibitem{mouret2015illuminating}
-Mouret, J.-B.\ \& Clune, J.\ (2015).
-Illuminating search spaces by mapping elites.
-\textit{arXiv:1504.04909}.
-
-\bibitem{lehman2011abandoning}
-Lehman, J.\ \& Stanley, K.O.\ (2011).
-Abandoning objectives: Evolution through the search for novelty alone.
-\textit{Evolutionary Computation}, 19(2), 189--223.
-
-\bibitem{real2017large}
-Real, E., Moore, S., Selle, A., Saxena, S., Suematsu, N.L., Tan, J., Le, Q., \& Kurakin, A.\ (2017).
-Large-scale evolution of image classifiers. \textit{ICML}.
-
-\bibitem{carter2019activation}
-Carter, S.\ et al.\ (2019).
-Activation atlas. \textit{Distill}.
-
-\bibitem{rame2022diverse}
-Ram\'{e}, A., Kirchmeyer, M., Rahier, T., Rakotomamonjy, A., Gallinari, P., \& Cord, M.\ (2022).
-Diverse weight averaging for out-of-distribution generalization.
-\textit{NeurIPS 2022} (arXiv:2205.09739).
-
-\bibitem{jones1995fitness}
-Jones, T.\ \& Forrest, S.\ (1995).
-Fitness distance correlation as a measure of problem difficulty for genetic algorithms.
-\textit{ICGA}.
-
-\bibitem{eiben2015introduction}
-Eiben, A.E.\ \& Smith, J.E.\ (2015).
-\textit{Introduction to Evolutionary Computing} (2nd ed.).
-Springer.
-
-\bibitem{mcinnes2020aligned}
-McInnes, L.\ (2020).
-Aligned UMAP for temporal and multi-sample data.
-\url{https://umap-learn.readthedocs.io/en/latest/aligned_umap.html}.
-
-\bibitem{cantareira2020exploring}
-Cantareira, G.D., Etemad, E., \& Paulovich, F.V.\ (2020).
-Exploring neural network hidden layer activity using vector fields.
-\textit{Information}, 11(9), 426.
-
-\bibitem{cantareira2020generic}
-Cantareira, G.D.\ \& Paulovich, F.V.\ (2020).
-A generic model for projection alignment applied to neural network visualization.
-\textit{EuroVis Workshop on Visual Analytics (EuroVA)}.
-
-\bibitem{rauber2017visualizing}
-Rauber, P.E., Fadel, S.G., Falc\~{a}o, A.X., \& Telea, A.C.\ (2017).
-Visualizing the hidden activity of artificial neural networks.
-\textit{IEEE Trans.\ Vis.\ Comput.\ Graphics}, 23(1), 101--110.
-
-\bibitem{rauber2016dynamic}
-Rauber, P.E., Falc\~{a}o, A.X., \& Telea, A.C.\ (2016).
-Visualizing time-dependent data using dynamic t-SNE.
-\textit{EuroVis Short Papers}.
-
-\bibitem{ferreira2013vector}
-Ferreira, N., Klosowski, J.T., Scheidegger, C.E., \& Silva, C.T.\ (2013).
-Vector field $K$-means: Clustering trajectories by fitting multiple vector fields.
-\textit{Computer Graphics Forum}, 32(3), 201--210.
-
-\bibitem{hohman2018visual}
-Hohman, F.M., Kahng, M., Pienta, R., \& Chau, D.H.\ (2018).
-Visual analytics in deep learning: An interrogative survey for the next frontiers.
-\textit{IEEE Trans.\ Vis.\ Comput.\ Graphics}, 25(8), 2674--2693.
-
-\end{thebibliography}
-} % end \small
+\bibliographystyle{plain}
+\bibliography{references}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -890,6 +770,51 @@ use embedding spread as the primary metric in the main text.
   embedding diversity ($\sigma_1=1.88$). At $\lambda=1.0$, all generations
   collapse to the reference ($\mathrm{TC}=1.0$) but temporal structure is destroyed.}
   \label{fig:exp3tc}
+\end{figure}
+
+\subsection{Interactive Visualization Tool}
+
+We developed a browser-based interactive tool built with Streamlit that exposes all
+visualization components described in this paper---aligned UMAP projections and population
+velocity fields---through a parameter-driven interface.
+Users can configure population size, number of generations, hidden dimensionality,
+mutation rate, alignment strength $\lambda$, and toggle between static (Matplotlib)
+and interactive (Plotly) rendering modes in real time.
+
+Figures~\ref{fig:streamlit_static_vf}--\ref{fig:streamlit_quiver_detail} show both
+rendering modes on the Make Moons benchmark with $\lambda=0.8$ and 80 generations.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figures/streamlit_vector_field.jpeg}%
+  \hfill
+  \includegraphics[width=0.49\linewidth]{figures/streamlit_aligned_umap.jpeg}
+  \caption{Static Matplotlib mode. \textbf{Left:} Vector Field tab---population flow
+  colored by generation (left panel) and fitness (right panel). \textbf{Right:} Aligned
+  UMAP tab---per-generation 2D embeddings with generation and fitness colorbars.
+  The sidebar exposes all run parameters for rapid hypothesis testing.}
+  \label{fig:streamlit_static_vf}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figures/streamlit_quiver_app.png}
+  \caption{Interactive tool (Plotly mode) showing the Vector Field tab on Make Moons,
+  $\lambda=0.8$, 80 generations. Quiver arrows indicate population flow direction and
+  magnitude; background density heatmap shows where individuals concentrate.
+  Left: colored by generation index. Right: colored by fitness.
+  The sidebar exposes all run parameters for rapid hypothesis testing.}
+  \label{fig:streamlit_quiver}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figures/streamlit_quiver_detail.png}
+  \caption{Detail view of the interactive Plotly quiver vector field. The density
+  background and directional arrows together reveal the dominant convergence basin
+  and the multimodal structure of the Make Moons fitness landscape.
+  Points are individually hoverable; the plot supports zoom and pan.}
+  \label{fig:streamlit_quiver_detail}
 \end{figure}
 
 \newpage
