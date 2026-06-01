@@ -35,11 +35,11 @@ logging.basicConfig(
     level=logging.ERROR,
 )
 
-BENCHMARKS = ["make_moons", "cifar10"]
+BENCHMARKS = ["make_moons", "cifar10", "halfcheetah"]
 SEEDS = [42, 123, 7, 31, 99]
 PCA_DIMS = {"cifar10": 50}
 GRID_RES = 22
-DISPLAY_NAMES = {"make_moons": "Make Moons", "cifar10": "CIFAR-10"}
+DISPLAY_NAMES = {"make_moons": "Make Moons", "cifar10": "CIFAR-10", "halfcheetah": "HalfCheetah"}
 
 
 def cache_path(benchmark_name: str, seed: int) -> Path:

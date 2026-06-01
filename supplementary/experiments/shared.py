@@ -20,6 +20,27 @@ FIGURES_DIR = _ROOT / "figures"
 CACHE_DIR = _ROOT / "cache"
 
 
+def set_science_style() -> None:
+    """Apply the SciencePlots publication style (no-latex: no system LaTeX needed).
+
+    Idempotent and safe to call at import time of an experiment. Keeps a couple of
+    overrides so dense multi-panel scatter grids stay legible.
+    """
+    import matplotlib as mpl
+    import scienceplots  # noqa: F401  (registers the styles)
+
+    plt.style.use(["science", "no-latex", "grid"])
+    mpl.rcParams.update({
+        "figure.dpi": 130,
+        "savefig.dpi": 300,
+        "savefig.bbox": "tight",
+        "savefig.facecolor": "white",
+        "axes.titlesize": 9,
+        "legend.frameon": True,
+        "legend.framealpha": 0.9,
+    })
+
+
 def ensure_dirs() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)

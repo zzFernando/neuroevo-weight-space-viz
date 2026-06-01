@@ -15,6 +15,7 @@ SCRIPTS = [
     "02_projection_baselines.py",
     "03_alignment_ablation.py",
     "01_multi_seed_robustness.py",
+    "05_umap_param_search.py",
 ]
 
 

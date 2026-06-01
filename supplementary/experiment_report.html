@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuroEvo-Viz — Relatório de Experimentos (UMAP em Neuroevolução)</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --muted:#555; --line:#d8d8d8; --bg:#fbfbf9;
+    --accent:#1f4e79; --code-bg:#f4f4ef; --chip:#eef2f7; --chip-ink:#1f4e79;
+  }
+  *{box-sizing:border-box}
+  body{
+    font-family:"Latin Modern Roman","Georgia",serif; color:var(--ink);
+    background:var(--bg); margin:0; line-height:1.55;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:48px 28px 96px}
+  header.title{border-bottom:3px solid var(--accent); padding-bottom:18px; margin-bottom:8px}
+  h1{font-size:30px; margin:0 0 6px; color:var(--accent); line-height:1.2}
+  .subtitle{color:var(--muted); font-size:16px}
+  .meta{color:var(--muted); font-size:13px; margin-top:10px}
+  h2{font-size:22px; color:var(--accent); margin:46px 0 6px; border-bottom:1px solid var(--line); padding-bottom:6px}
+  h3{font-size:18px; margin:30px 0 4px}
+  p{margin:8px 0}
+  a{color:var(--accent)}
+  .lead{font-size:16px; color:#333}
+  .bridge{font-size:15.5px; color:#33414d; background:#eef4fa; border-left:4px solid var(--accent);
+    padding:10px 16px; margin:14px 0 6px; border-radius:0 6px 6px 0; font-style:italic}
+  .chip{display:inline-block; background:var(--chip); color:var(--chip-ink);
+    border-radius:20px; padding:2px 11px; font-size:12px; margin:2px 4px 2px 0; font-family:sans-serif}
+  .exp{border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin:18px 0; background:#fff;
+    break-inside:avoid; page-break-inside:avoid}
+  .exp h3{margin-top:0}
+  .grid-label{font-family:sans-serif; font-size:12px; font-weight:700; color:var(--accent);
+    text-transform:uppercase; letter-spacing:.04em; margin:12px 0 2px}
+  .what,.how{margin:2px 0}
+  code,pre{font-family:"SF Mono",Menlo,Consolas,monospace; font-size:13px}
+  pre{background:var(--code-bg); border:1px solid var(--line); border-radius:7px;
+    padding:10px 13px; overflow-x:auto; margin:6px 0}
+  code.inline{background:var(--code-bg); padding:1px 5px; border-radius:4px}
+  figure{margin:14px 0 4px; text-align:center}
+  figure img{max-width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#fff}
+  figcaption{font-size:13px; color:var(--muted); margin-top:6px}
+  .key{background:#fff8e8; border-left:4px solid #e0a800; padding:8px 14px; margin:12px 0; border-radius:0 6px 6px 0}
+  .warn{background:#fdecec; border-left:4px solid #d62728; padding:8px 14px; margin:12px 0; border-radius:0 6px 6px 0}
+  table{border-collapse:collapse; width:100%; margin:10px 0; font-size:14px}
+  th,td{border:1px solid var(--line); padding:5px 9px; text-align:left}
+  th{background:var(--chip); font-family:sans-serif; font-size:12px}
+  .toc{columns:2; font-size:14px; margin:14px 0}
+  .toc a{display:block; margin:3px 0; text-decoration:none}
+  .toc .sec{font-weight:700; color:var(--accent); margin-top:8px}
+  .toolbar{position:sticky; top:0; z-index:50; background:rgba(251,251,249,.92);
+    backdrop-filter:blur(6px); border-bottom:1px solid var(--line); padding:10px 0; margin:-48px -28px 24px;
+    text-align:right; padding-right:28px}
+  .btn{font-family:sans-serif; font-size:14px; font-weight:600; color:#fff; background:var(--accent);
+    border:none; border-radius:7px; padding:9px 18px; cursor:pointer}
+  .btn:hover{background:#163b5c}
+  .footer{margin-top:60px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:13px}
+  @media print{
+    .toolbar{display:none}
+    body{background:#fff}
+    .wrap{max-width:none; padding:0 12px}
+    .exp{border-color:#ccc}
+    a{color:var(--ink); text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">⬇ Baixar PDF</button>
+  </div>
+
+  <header class="title">
+    <h1>Visualizando Neuroevolução com UMAP — uma investigação</h1>
+    <div class="subtitle">Do espaço de pesos ao espaço de funções: métricas, mistérios e o que a geometria revela</div>
+    <div class="meta">NeuroEvo-Viz · benchmarks: make_moons, CIFAR-10, HalfCheetah · figuras: Matplotlib + SciencePlots · topologia fixa</div>
+  </header>
+
+  <p class="lead">Este relatório é contado como uma <strong>investigação</strong>, não como uma lista de experimentos.
+  Queremos visualizar populações de redes neuroevoluídas com UMAP. A pergunta parece simples — mas leva a um mistério
+  (o espaço de pesos não organiza a fitness), à sua explicação (as simetrias da rede), e a uma recompensa
+  (a geometria revela como cada algoritmo busca). Cada experimento traz <em>o que</em>, <em>como</em> e <em>como replicar</em>.</p>
+
+  <div class="key"><strong>Como replicar (geral).</strong> Ambiente <code class="inline">pixi</code> em
+  <code class="inline">supplementary/</code>: <code class="inline">pixi run python experiments/&lt;arquivo&gt;.py</code>.
+  Experimentos do HalfCheetah que geram pesos/comportamento usam o ambiente JAX/Brax em
+  <code class="inline">brax/.venv</code> (<code class="inline">.venv/bin/python &lt;script&gt;.py</code>).
+  Figuras → <code class="inline">figures/</code>, métricas → <code class="inline">results/</code>.</div>
+
+  <h2>Índice</h2>
+  <nav class="toc">
+    <a class="sec" href="#setup">0. Setup: o método funciona?</a>
+    <a href="#e1">· Exp 1 — Robustez multi-seed</a>
+    <a href="#e3">· Exp 3 — Ablação do alinhamento (λ)</a>
+    <a href="#e5">· Exp 5 — Busca de hiperparâmetros</a>
+    <a href="#e11">· Exp 11 — Quais benchmarks aprenderam</a>
+    <a class="sec" href="#metricas">1. Qual métrica de distância?</a>
+    <a href="#e8">· Exp 8 — Todas as métricas</a>
+    <a href="#e9">· Exp 9 — Validação top-3</a>
+    <a href="#e10">· Exp 10 — Baixa vs alta dim</a>
+    <a href="#e12">· Exp 12 — Benchmarks que funcionam</a>
+    <a href="#e13">· Exp 13 — Colorido por fitness</a>
+    <a class="sec" href="#misterio">2. O mistério: e a fitness?</a>
+    <a href="#e14">· Exp 14 — Comportamento vs pesos</a>
+    <a href="#e15">· Exp 15 — Descritor fitness-aware</a>
+    <a href="#e16">· Exp 16 — Embedding 3D</a>
+    <a class="sec" href="#explicacao">3. A explicação: simetrias</a>
+    <a href="#e21">· Exp 21 — Equivalência funcional</a>
+    <a href="#e23">· Exp 23 — Embedding de grafo</a>
+    <a class="sec" href="#geometria">4. A recompensa: geometria da busca</a>
+    <a href="#e17">· Exp 17 — Joint UMAP dos 4 ES</a>
+    <a href="#e18">· Exp 18 — Multi-seed, run longa, 3D</a>
+    <a href="#e19">· Exp 19 — Joint UMAP no make_moons</a>
+    <a href="#e20">· Exp 20 — GIFs de evolução temporal</a>
+    <a href="#e22">· Exp 22 — Curvas de dinâmica</a>
+    <a class="sec" href="#conclusoes">Conclusões</a>
+    <a class="sec" href="#apendice">Apêndice — validações</a>
+    <a href="#e2">· Exp 2 — Baselines de projeção</a>
+    <a href="#e4">· Exp 4 — Teste sintético</a>
+    <a href="#e6">· Exp 6 — Geração única</a>
+    <a href="#e7">· Exp 7 — Escala (1M+)</a>
+  </nav>
+
+  <!-- ================= SEÇÃO 0 ================= -->
+  <h2 id="setup">0. Setup: o método funciona?</h2>
+  <p class="bridge">Antes de qualquer descoberta, três perguntas de base: a visualização é <em>estável</em>? como
+  <em>ajustá-la</em>? e em quais benchmarks a evolução de fato <em>aprendeu</em> — para sabermos onde confiar nos resultados?</p>
+
+  <div class="exp" id="e1">
+    <h3>Exp 1 — Robustez multi-seed</h3>
+    <span class="chip">3 benchmarks</span><span class="chip">5 seeds</span><span class="chip">campo vetorial</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Verifica que a visualização (campo vetorial do fluxo evolutivo) é estável entre seeds e benchmarks.
+    Inclui testes estatísticos (Welch + Cohen's d) entre benchmarks.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Roda a evolução por benchmark/seed, computa UMAP alinhado (λ=0.8), extrai spread, atratores (DBSCAN) e
+    taxa de convergência; cacheado em <code class="inline">cache/exp1_*.npz</code>.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/01_multi_seed_robustness.py</pre>
+    <figure><img src="figures/exp1_multiseed.png" alt="exp1">
+      <figcaption>Campos vetoriais: linhas = benchmarks, colunas = seeds.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e3">
+    <h3>Exp 3 — Ablação do alinhamento temporal (λ)</h3>
+    <span class="chip">λ ∈ {0…1}</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Ablação do parâmetro de alinhamento λ (0 = UMAP puro, 1 = colapsa na referência). Mostra o trade-off entre
+    coerência temporal e fidelidade, justificando λ=0.8.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Varre <code class="inline">LAMBDA_SWEEP=[0,0.2,…,1.0]</code>; grid de 3 linhas (geração, fitness, campo vetorial) × 6 λ; curva de coerência.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/03_alignment_ablation.py</pre>
+    <figure><img src="figures/exp3_alignment_ablation.png" alt="exp3">
+      <figcaption>Efeito de λ na projeção.</figcaption></figure>
+    <figure><img src="figures/exp3_tc_curve.png" alt="exp3 tc">
+      <figcaption>Coerência temporal vs. λ.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e5">
+    <h3>Exp 5 — Busca de hiperparâmetros (n_neighbors, min_dist, λ)</h3>
+    <span class="chip">grid search</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Varredura dos hiperparâmetros do UMAP para o espaço de pesos — base para os defaults
+    (nn=15, min_dist=0.1, λ=0.8) usados no resto do estudo.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Produto cartesiano <code class="inline">N_NEIGHBORS×MIN_DIST×LAMBDA</code>; grids scatter + campo vetorial; CSV de métricas.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/05_umap_param_search.py</pre>
+    <figure><img src="figures/exp5_umap_grid_la0.8.png" alt="exp5">
+      <figcaption>Grid n_neighbors × min_dist (λ=0.8).</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e11">
+    <h3>Exp 11 — Quais benchmarks realmente aprenderam</h3>
+    <span class="chip">fitness</span><span class="chip">5 seeds</span><span class="chip">portão de confiança</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Curvas de fitness + projeção para make_moons e HalfCheetah. Achado crítico: o <strong>CIFAR-10 praticamente
+    não aprendeu</strong> (fitness final abaixo do acaso). Por isso ele é <em>descartado</em> das análises de fitness adiante —
+    este experimento é o portão que define onde confiar.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Lê caches do Exp 1 (<code class="inline">cache/exp1_*.npz</code>) com mean_fitness e embeddings.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/11_evolution_summary.py</pre>
+    <figure><img src="figures/exp11_evolution_summary.png" alt="exp11">
+      <figcaption>Topo: fitness por geração. Base: projeção UMAP por geração.</figcaption></figure>
+  </div>
+
+  <!-- ================= SEÇÃO 1 ================= -->
+  <h2 id="metricas">1. Qual métrica de distância?</h2>
+  <p class="bridge">Com o método validado, a primeira decisão real: o pipeline usava <code class="inline">euclidean</code> fixo.
+  Será a melhor escolha para vetores de peso com sinal? Investigamos todas as métricas que o UMAP oferece.</p>
+
+  <div class="exp" id="e8">
+    <h3>Exp 8 — Comparação de todas as métricas</h3>
+    <span class="chip">31 métricas</span><span class="chip">make_moons</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Testou as ~31 métricas nomeadas do UMAP, medindo coerência temporal e atratores. Métricas binárias
+    (jaccard, hamming…) dão tc=1.0 <em>degenerado</em> (embedding colapsado).</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Adicionado <code class="inline">metric</code>/<code class="inline">metric_kwds</code> em
+    <code class="inline">compute_aligned_umap_embedding</code>; parâmetros (V, VI, p) derivados automaticamente.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/08_metric_comparison.py --force-rerun</pre>
+    <figure><img src="figures/exp8_metric_scatter_grid.png" alt="exp8">
+      <figcaption>Scatter por geração das 30 métricas que rodaram. Binárias viram grades degeneradas.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e9">
+    <h3>Exp 9 — Validação do top-3 (multi-seed × benchmark)</h3>
+    <span class="chip">5 seeds</span><span class="chip">make_moons + CIFAR-10</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Validou chebyshev, mahalanobis e euclidean em 5 seeds × 2 benchmarks. Revelou o chebyshev como
+    <strong>instável</strong> e o mahalanobis como o mais robusto.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Covariância do mahalanobis estimada no mesmo espaço do UMAP (após PCA no CIFAR-10), evitando mismatch.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/09_metric_validation.py</pre>
+    <figure><img src="figures/exp9_metric_validation.png" alt="exp9">
+      <figcaption>Coerência temporal e atratores (média ± desvio) por métrica e benchmark.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e10">
+    <h3>Exp 10 — Baixa vs alta dimensão (sem PCA no CIFAR-10)</h3>
+    <span class="chip">make_moons vs CIFAR-10</span><span class="chip">teoria angular</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Confirmou: métricas angulares (cosine) melhoram em alta dimensão. Mostrou que <strong>mahalanobis é
+    intratável sem PCA</strong> (covariância D×D ≈ 320 GB no CIFAR-10 cru).</p>
+    <div class="grid-label">Como</div>
+    <p class="how">PCA desativado; guard que pula o mahalanobis quando a dimensão excede ~2000 (evita OOM).</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/10_metric_projection_comparison.py</pre>
+    <figure><img src="figures/exp10_metric_projection_comparison.png" alt="exp10">
+      <figcaption>5 métricas × 2 benchmarks. Mahalanobis "intractable" no CIFAR-10 sem PCA.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e12">
+    <h3>Exp 12 — Métricas nos benchmarks onde a evolução funciona</h3>
+    <span class="chip">make_moons + HalfCheetah</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Comparação restrita aos benchmarks confiáveis (CIFAR-10 excluído, ver Exp 11). Veredito:
+    <strong>mahalanobis</strong> lidera (0.90 / 0.87); chebyshev cai para 0.51 no HalfCheetah.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Pesos do HalfCheetah lidos de <code class="inline">brax/runs/simple_ga_seed42.npz</code> (390-dim, sem JAX).</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/12_metric_comparison_working.py</pre>
+    <figure><img src="figures/exp12_metric_comparison_working.png" alt="exp12">
+      <figcaption>5 métricas × 2 benchmarks, colorido por geração.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e13">
+    <h3>Exp 13 — Mesma comparação, colorida por fitness</h3>
+    <span class="chip">organização do landscape</span><span class="chip">gancho do mistério</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Recoloriu por fitness (★ = melhor). No make_moons o mahalanobis forma um núcleo de alta-fitness coeso;
+    mas no <strong>HalfCheetah nenhuma métrica organiza bem a fitness</strong>. Esse fracasso é o gancho da próxima seção.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Fitness do make_moons reavaliada dos pesos cacheados; HalfCheetah lê <code class="inline">fitnesses</code> dos runs.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/13_metric_comparison_fitness.py</pre>
+    <figure><img src="figures/exp13_metric_comparison_fitness.png" alt="exp13">
+      <figcaption>Projeções coloridas por percentil de fitness.</figcaption></figure>
+  </div>
+
+  <!-- ================= SEÇÃO 2 ================= -->
+  <h2 id="misterio">2. O mistério: por que a fitness não se organiza?</h2>
+  <p class="bridge">O Exp 13 deixou um enigma: no HalfCheetah, redes de fitness parecida ficam espalhadas — nenhuma métrica
+  resolve. Se não é a métrica, será o <em>espaço</em>? Testamos embeddar comportamento em vez de pesos, e a 3ª dimensão.</p>
+
+  <div class="exp" id="e14">
+    <h3>Exp 14 — Espaço comportamental vs. de pesos (HalfCheetah)</h3>
+    <span class="chip">quality-diversity</span><span class="chip">rollout brax</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Testou se embeddar <em>comportamento</em> organiza melhor a fitness. Resposta inesperada: um descritor
+    cinemático ingênuo (velocidade + distância) é <strong>anti-correlacionado</strong> com a fitness (dominada por custo de controle).</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Rollout das políticas salvas via <code class="inline">brax/extract_behavior.py</code> (perfil de x_velocity);
+    UMAP no descritor; coerência de fitness por k-NN.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>cd brax &amp;&amp; .venv/bin/python extract_behavior.py --seed 42
+cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight_space.py</pre>
+    <figure><img src="figures/exp14_behavior_vs_weight_space.png" alt="exp14">
+      <figcaption>Espaço de pesos vs. comportamental, coloridos por fitness.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e15">
+    <h3>Exp 15 — Descritor comportamental fitness-aware</h3>
+    <span class="chip">k-NN fitness corr</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Descritor <strong>rico</strong> (marcha+distância+esforço) supera o espaço de pesos (corr 0.35 vs 0.26, +38%);
+    o 2D escolhido a dedo é o pior. A <em>riqueza</em> do descritor importa mais que escolher features manualmente.</p>
+    <div class="grid-label">Como</div>
+    <p class="how"><code class="inline">extract_behavior.py</code> estendido para coletar custo de controle e componentes da recompensa.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/15_fitness_aware_descriptor.py</pre>
+    <figure><img src="figures/exp15_fitness_aware_descriptor.png" alt="exp15">
+      <figcaption>Quatro espaços de embedding, coloridos por fitness, com corr/dev de k-NN.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e16">
+    <h3>Exp 16 — Embedding 3D</h3>
+    <span class="chip">2D vs 3D</span>
+    <div class="grid-label">O que</div>
+    <p class="what">A 3ª dimensão melhora muito a organização: espaço de pesos sobe de 0.26→0.43 (+67%); em 3D pesos e
+    comportamento empatam. Boa parte da "falha" do espaço de pesos era <strong>compressão 2D</strong> — mas não toda (ver Seção 3).</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Adicionado <code class="inline">n_components</code> em <code class="inline">compute_aligned_umap_embedding</code>.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/16_3d_embedding.py</pre>
+    <figure><img src="figures/exp16_3d_embedding.png" alt="exp16">
+      <figcaption>UMAP 3D do espaço de pesos e do comportamental, coloridos por fitness.</figcaption></figure>
+  </div>
+
+  <!-- ================= SEÇÃO 3 ================= -->
+  <h2 id="explicacao">3. A explicação: simetrias da rede</h2>
+  <p class="bridge">O 3D ajudou, mas não explicou a <em>causa</em>. A pergunta de fundo permanecia: por que redes de fitness
+  igual ficam longe no espaço de pesos? Aqui está a resposta — e ela amarra todo o mistério da Seção 2.</p>
+
+  <div class="exp" id="e21">
+    <h3>Exp 21 — Longe nos pesos, perto na função</h3>
+    <span class="chip">prova empírica</span><span class="chip">clímax</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Os melhores indivíduos dos 4 algoritmos estão distantes no espaço de pesos (dist. ~10) mas computam
+    praticamente a <strong>mesma função</strong> (correlação de saídas 0.88–0.99, fronteiras idênticas). <em>Esta é a causa raiz</em>:
+    as simetrias da rede (permutação de neurônios, sinal, escala) criam infinitas soluções equivalentes espalhadas pelo espaço de pesos —
+    por isso a fitness não se organiza ali, e por isso os algoritmos nunca convergem ao mesmo ponto.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Reconstrói cada rede, avalia predições, compara distância de pesos vs. correlação de saídas; desenha fronteiras.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/21_functional_equivalence.py</pre>
+    <figure><img src="figures/exp21_functional_equivalence.png" alt="exp21">
+      <figcaption>Quatro fronteiras de decisão idênticas, de pesos muito distantes.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e23">
+    <h3>Exp 23 — Embedding de grafo elimina a simetria</h3>
+    <span class="chip">espectro do Laplaciano</span><span class="chip">topologia variável</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Se a permutação é o problema, um espaço <em>invariante a ela</em> é a cura. Cópias permutadas (idênticas) ficam
+    espalhadas no espaço de pesos (razão intra/entre = 0.96) mas <strong>colapsam num ponto</strong> no espaço espectral de grafo
+    (razão ≈ 10⁻¹⁵). E o espectro tem tamanho fixo mesmo para topologia variável — rota natural para NEAT.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Rede → grafo ponderado → autovalores ordenados do Laplaciano → PCA. Comparado com o vetor de pesos.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/23_graph_embedding_demo.py</pre>
+    <figure><img src="figures/exp23_graph_embedding_demo.png" alt="exp23">
+      <figcaption>Esquerda: pesos embaralham as cópias. Direita: espectro de grafo as colapsa por função.</figcaption></figure>
+    <div class="warn"><strong>Limite.</strong> O espectro usado descarta o sinal dos pesos (usa |w|). Para fidelidade total,
+    usar WL kernel com pesos com sinal ou embeddings de GNN.</div>
+  </div>
+
+  <!-- ================= SEÇÃO 4 ================= -->
+  <h2 id="geometria">4. A recompensa: a geometria revela o algoritmo</h2>
+  <p class="bridge">Resolvido o mistério, surge o bônus. Se cada algoritmo busca de um jeito, o joint-UMAP do espaço de pesos
+  vira um diagnóstico: empilhamos os 4 ES num <em>fit único</em> (comparável) e lemos suas "assinaturas" geométricas.</p>
+
+  <div class="exp" id="e17">
+    <h3>Exp 17 — Joint UMAP dos 4 algoritmos</h3>
+    <span class="chip">16.000 indivíduos</span><span class="chip">fit único</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Cada ES tem uma <strong>assinatura geométrica</strong>: GA fragmentado em ilhas, OpenES bolha compacta,
+    CMA/sep-CMA fitas suaves. Cobertura ≠ qualidade: o GA cobre mais e tem a pior fitness; OpenES o oposto.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Empilha as populações de todos os algoritmos e ajusta um único <code class="inline">umap.UMAP</code> (euclidean, seed fixa).</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/17_joint_es_comparison.py</pre>
+    <figure><img src="figures/exp17_joint_es_by_algorithm.png" alt="exp17a">
+      <figcaption>Painel único colorido por algoritmo.</figcaption></figure>
+    <figure><img src="figures/exp17_joint_es_algo_vs_fitness.png" alt="exp17b">
+      <figcaption>Por algoritmo | por fitness (★ = melhor global).</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e18">
+    <h3>Exp 18 — Multi-seed, run longa, 3D + GIF, tabela</h3>
+    <span class="chip">consistência</span><span class="chip">GIF rotação</span>
+    <div class="grid-label">O que</div>
+    <p class="what">(a) Assinaturas consistentes nos seeds 42/7/123 → propriedade do algoritmo. (b) Run longa do OpenES balanceada.
+    (c) 3D + GIF rotacionando. Tabela quantitativa de fragmentação/compactness.</p>
+    <div class="grid-label">Como</div>
+    <p class="how"><code class="inline">load_runs</code> com subamostragem por run; GIF via <code class="inline">PillowWriter</code>; fragmentação via DBSCAN.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/18_joint_es_extended.py</pre>
+    <figure><img src="figures/exp18a_multiseed_consistency.png" alt="exp18a">
+      <figcaption>(a) Joint UMAP por seed — assinaturas estáveis.</figcaption></figure>
+    <figure><img src="figures/exp18b_longrun_trajectory.png" alt="exp18b">
+      <figcaption>(b) Inclui OpenES longo (500 ger), densidade balanceada.</figcaption></figure>
+    <figure><img src="figures/exp18c_joint_3d.gif" alt="exp18c gif">
+      <figcaption>(c) GIF — rotação 3D (anima no navegador; no PDF aparece o 1º frame).</figcaption></figure>
+    <table>
+      <tr><th>algoritmo</th><th>clusters</th><th>compactness</th><th>coverage</th><th>best fit</th></tr>
+      <tr><td>Simple GA</td><td>142</td><td>12.85</td><td>1111</td><td>89.7</td></tr>
+      <tr><td>OpenES</td><td>11</td><td>0.60</td><td>34</td><td>321.3</td></tr>
+      <tr><td>CMA-ES</td><td>50</td><td>5.97</td><td>251</td><td>191.7</td></tr>
+      <tr><td>sep-CMA-ES</td><td>47</td><td>4.49</td><td>128</td><td>208.9</td></tr>
+    </table>
+  </div>
+
+  <div class="exp" id="e19">
+    <h3>Exp 19 — Mesmo estudo no make_moons</h3>
+    <span class="chip">48-dim</span><span class="chip">evosax</span>
+    <div class="grid-label">O que</div>
+    <p class="what">As assinaturas se repetem no make_moons (GA fragmentado, OpenES compacto, CMA fitas) — <strong>invariantes à
+    tarefa</strong>. Com defaults do evosax, só o OpenES converge bem.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Runs via <code class="inline">brax/moons_evosax.py</code> (fitness pura em JAX); dataset pré-gerado com sklearn.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>cd brax &amp;&amp; .venv/bin/python moons_evosax.py --all_algos --seed 42
+cd ../supplementary &amp;&amp; pixi run python experiments/19_joint_es_moons.py</pre>
+    <figure><img src="figures/exp19_moons_algo_vs_fitness.png" alt="exp19">
+      <figcaption>Joint UMAP no make_moons: por algoritmo | por fitness.</figcaption></figure>
+    <figure><img src="figures/exp19_moons_joint_3d.gif" alt="exp19 gif">
+      <figcaption>GIF 3D rotacionando (make_moons).</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e20">
+    <h3>Exp 20 — GIFs de evolução temporal</h3>
+    <span class="chip">dinâmica</span><span class="chip">geração a geração</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Anima a busca no tempo: a população "marcha" pelo espaço. CMA desliza coeso pela fita; OpenES estaciona;
+    GA brota ilhas. Mostra a <em>dinâmica</em>, complementando a estrutura estática.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Reusa embeddings 2D cacheados; reconstrói o índice de geração por ponto; <code class="inline">FuncAnimation</code>.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/20_temporal_evolution_gif.py</pre>
+    <figure><img src="figures/exp20_halfcheetah_evolution.gif" alt="exp20 hc">
+      <figcaption>HalfCheetah — evolução temporal. (<code>exp20_make_moons_evolution.gif</code> para o make_moons.)</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e22">
+    <h3>Exp 22 — Curvas quantitativas de dinâmica de busca</h3>
+    <span class="chip">espaço de pesos cru</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Converte a leitura visual em séries temporais: dispersão (contração=convergência), velocidade do centróide e
+    fitness. Desambigua: uma "fita" pode ser convergência saudável (HalfCheetah-CMA) ou <strong>divergência</strong> (moons-CMA).</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Métricas no espaço de pesos cru (não no embedding, que distorce distâncias).</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/22_search_dynamics.py</pre>
+    <figure><img src="figures/exp22_search_dynamics.png" alt="exp22">
+      <figcaption>Dispersão, velocidade do centróide e fitness por geração (4 ES × 2 benchmarks).</figcaption></figure>
+  </div>
+
+  <!-- ============ CONCLUSÕES ============ -->
+  <h2 id="conclusoes">Conclusões</h2>
+  <ul>
+    <li><strong>Métrica:</strong> <code class="inline">euclidean</code> é o baseline robusto; <code class="inline">mahalanobis</code>
+    é o melhor quando a dimensão permite a covariância; <code class="inline">cosine</code> ajuda em alta dimensão; binárias e KL são inadequadas para pesos com sinal.</li>
+    <li><strong>Dimensão:</strong> 3D para análise (organiza muito melhor a fitness), 2D para figuras.</li>
+    <li><strong>O mistério e sua causa:</strong> o espaço de pesos é cego à equivalência funcional — simetrias (permutação/sinal/escala)
+    espalham soluções idênticas. É por isso que a fitness não se organiza ali.</li>
+    <li><strong>A cura:</strong> espaço comportamental (rico) ou de grafo (invariante a permutação) — que também estende para topologia variável.</li>
+    <li><strong>A recompensa:</strong> o fit conjunto no espaço de pesos revela assinaturas geométricas de busca invariantes à tarefa; cobertura ≠ qualidade.</li>
+    <li><strong>Escopo:</strong> toda a análise pressupõe <strong>topologia fixa</strong>.</li>
+  </ul>
+
+  <!-- ============ APÊNDICE ============ -->
+  <h2 id="apendice">Apêndice — validações secundárias</h2>
+  <p class="bridge">Experimentos de suporte que sustentam as escolhas do método, mas que não fazem parte do fio condutor principal.</p>
+
+  <div class="exp" id="e2">
+    <h3>Exp 2 — Baselines de projeção (UMAP vs PCA vs t-SNE)</h3>
+    <div class="grid-label">O que</div>
+    <p class="what">Justifica a escolha do UMAP contra baselines (PCA, t-SNE) em preservação de estrutura temporal e separação de atratores.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/02_projection_baselines.py</pre>
+    <figure><img src="figures/exp2_projection_baselines.png" alt="exp2">
+      <figcaption>UMAP vs. baselines na mesma evolução.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e4">
+    <h3>Exp 4 — Teste sintético (ground truth)</h3>
+    <div class="grid-label">O que</div>
+    <p class="what">Valida o método em dados sintéticos com estrutura conhecida (1 e 4 gaussianas): a contagem de atratores recupera o ground truth.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/04_synthetic_unimodal_test.py</pre>
+    <figure><img src="figures/exp4_synthetic_validation.png" alt="exp4">
+      <figcaption>Validação em estruturas sintéticas conhecidas.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e6">
+    <h3>Exp 6 — UMAP de geração única</h3>
+    <div class="grid-label">O que</div>
+    <p class="what">Projeção de uma única geração (sem componente temporal) em grids de hiperparâmetros — isola o efeito espacial do UMAP do alinhamento.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/06_single_gen_umap.py</pre>
+    <figure><img src="figures/exp6_param_grid_gen79.png" alt="exp6">
+      <figcaption>Grid de hiperparâmetros na geração única (gen 79).</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e7">
+    <h3>Exp 7 — UMAP em escala (1M+ pontos)</h3>
+    <div class="grid-label">O que</div>
+    <p class="what">Escalabilidade: ajusta num subconjunto estratificado e usa <code class="inline">.transform()</code> em lotes;
+    renderiza por histograma 2D (O(grid²), independente de n).</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/07_large_scale_umap.py</pre>
+    <figure><img src="figures/exp7_large_umap_nn15_md0.1.png" alt="exp7">
+      <figcaption>Densidade de 1M+ pontos projetados.</figcaption></figure>
+  </div>
+
+  <div class="footer">
+    Gerado para o projeto NeuroEvo-Viz · 23 experimentos · Figuras em <code>supplementary/figures/</code> ·
+    Scripts em <code>supplementary/experiments/</code> e <code>brax/</code> · Botão <em>Baixar PDF</em> imprime → salvar como PDF.
+  </div>
+</div>
+</body>
+</html>

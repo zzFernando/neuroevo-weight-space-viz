@@ -78,6 +78,9 @@ def compute_aligned_umap_embedding(
     n_neighbors: int = 15,
     min_dist: float = 0.1,
     pca_dims: Optional[int] = None,
+    metric: str = "euclidean",
+    metric_kwds: Optional[dict] = None,
+    n_components: int = 2,
 ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
     """Joint UMAP embedding with reference-anchored temporal alignment.
 
@@ -95,8 +98,9 @@ def compute_aligned_umap_embedding(
     reducer = umap.UMAP(
         n_neighbors=n_neighbors,
         min_dist=min_dist,
-        n_components=2,
-        metric="euclidean",
+        n_components=n_components,
+        metric=metric,
+        metric_kwds=metric_kwds,
         random_state=random_state,
     )
 
