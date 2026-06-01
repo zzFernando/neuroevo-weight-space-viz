@@ -155,11 +155,13 @@
     <a class="sec" href="#explicacao">3. A explicação: simetrias</a>
     <a href="#e21">· Exp 21 — Equivalência funcional</a>
     <a href="#e23">· Exp 23 — Embedding de grafo</a>
+    <a href="#e29">· Exp 29 — Grafo com sinal</a>
     <a class="sec" href="#geometria">4. A recompensa: geometria da busca</a>
     <a href="#e17">· Exp 17 — Joint UMAP dos 4 ES</a>
     <a href="#e18">· Exp 18 — Multi-seed, run longa, 3D</a>
     <a href="#e19">· Exp 19 — Joint UMAP no make_moons</a>
     <a href="#e24">· Exp 24 — Assinaturas cross-task</a>
+    <a href="#e30">· Exp 30 — Assinaturas em controle (CartPole)</a>
     <a href="#e28">· Exp 28 — Confound de multimodalidade</a>
     <a href="#e20">· Exp 20 — GIFs de evolução temporal</a>
     <a href="#e22">· Exp 22 — Curvas de dinâmica</a>
@@ -485,8 +487,34 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
       <em>Como ler:</em> cor = função; pontos da mesma cor deveriam coincidir. À esquerda (espaço de pesos) as cores se
       <em>embaralham</em> — permutações ficam tão longe quanto funções diferentes (razão intra/entre = 0.96). À direita
       (espectro do Laplaciano) cada função colapsa num ponto (razão ≈ 10⁻¹⁵): o espaço de grafo é invariante à permutação.</figcaption></figure>
-    <div class="warn"><strong>Limite.</strong> O espectro usado descarta o sinal dos pesos (usa |w|). Para fidelidade total,
-    usar WL kernel com pesos com sinal ou embeddings de GNN.</div>
+    <div class="warn"><strong>Limite (endereçado no Exp 29).</strong> O espectro acima usa |w|, descartando o <em>sinal</em> dos
+    pesos — então é invariante à permutação, mas também cego a mudanças de sinal que <em>mudam</em> a função. O Exp 29 corrige isso.</div>
+  </div>
+
+  <div class="exp" id="e29">
+    <h3>Exp 29 — Embedding de grafo com sinal (fechando a limitação do Exp 23)</h3>
+    <span class="chip">Laplaciano assinado</span><span class="chip">permutação + sinal</span>
+    <div class="grid-label">O que</div>
+    <p class="what">O espectro |w| do Exp 23 é cego ao sinal: uma rede B com o <em>mesmo</em> |w| mas sinais diferentes (função
+    diferente) recebe o mesmo espectro. Testamos 3 representações contra permutação (mesma função) vs. sign-flip (função diferente,
+    |w| idêntico). O <strong>espectro do Laplaciano assinado</strong> é o único que colapsa permutações <em>e</em> separa o
+    sign-flip — resolve a limitação.</p>
+    <table>
+      <tr><th>representação</th><th>d(permutação)</th><th>d(sign-flip)</th><th>veredito</th></tr>
+      <tr><td>vetor de pesos</td><td>0.96</td><td>0.73</td><td>sensível a tudo ✗</td></tr>
+      <tr><td>|w| spectrum (Exp 23)</td><td>0.00</td><td><strong>0.00</strong></td><td>colapsa permutação, cego ao sinal ✗</td></tr>
+      <tr><td><strong>signed spectrum (Exp 29)</strong></td><td><strong>0.00</strong></td><td><strong>0.14</strong></td><td>invariante a permutação E sensível ao sinal ✓</td></tr>
+    </table>
+    <div class="grid-label">Como</div>
+    <p class="how">Laplaciano assinado L = diag(Σ|A|) − A com A de pesos com sinal (Kunegis et al.); autovalores ordenados.
+    Distâncias normalizadas pela distância a uma rede aleatória; diferença funcional confirma o ground truth
+    (permutação ≈ 2e-16; sign-flip ≈ 0.64).</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/29_signed_graph_embedding.py</pre>
+    <figure><img src="figures/exp29_signed_graph_embedding.png" alt="exp29">
+      <figcaption><strong>Figura 3.3.</strong> Distância normalizada ao original para permutação (azul, mesma função) vs.
+      sign-flip (vermelho, função diferente). <em>Como ler:</em> o ideal é azul ≈ 0 e vermelho &gt; 0. Só o espectro assinado
+      atinge ambos; o |w| zera os dois (perde o sinal).</figcaption></figure>
   </div>
 
   <!-- ================= SEÇÃO 4 ================= -->
