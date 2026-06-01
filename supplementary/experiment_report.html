@@ -72,15 +72,51 @@
   </div>
 
   <header class="title">
-    <h1>Visualizando Neuroevolução com UMAP — uma investigação</h1>
-    <div class="subtitle">Do espaço de pesos ao espaço de funções: métricas, mistérios e o que a geometria revela</div>
-    <div class="meta">NeuroEvo-Viz · benchmarks: make_moons, CIFAR-10, HalfCheetah · figuras: Matplotlib + SciencePlots · topologia fixa</div>
+    <div style="font-family:sans-serif;font-size:12px;letter-spacing:.08em;color:#888;text-transform:uppercase">
+      Prévia de dissertação · NeuroEvo-Viz</div>
+    <h1>Visualizando Neuroevolução com UMAP</h1>
+    <div class="subtitle">Do espaço de pesos ao espaço de funções: métricas de distância, simetrias e a geometria da busca evolutiva</div>
+    <div class="meta">Benchmarks: make_moons, CIFAR-10, HalfCheetah + tarefas sintéticas · Algoritmos: Simple GA, OpenES, CMA-ES, sep-CMA-ES ·
+    Figuras: Matplotlib + SciencePlots · Escopo: topologia fixa</div>
   </header>
 
-  <p class="lead">Este relatório é contado como uma <strong>investigação</strong>, não como uma lista de experimentos.
-  Queremos visualizar populações de redes neuroevoluídas com UMAP. A pergunta parece simples — mas leva a um mistério
-  (o espaço de pesos não organiza a fitness), à sua explicação (as simetrias da rede), e a uma recompensa
-  (a geometria revela como cada algoritmo busca). Cada experimento traz <em>o que</em>, <em>como</em> e <em>como replicar</em>.</p>
+  <h2 id="resumo">Resumo</h2>
+  <p class="lead">A neuroevolução produz <em>populações</em> de redes ao longo de gerações, mas faltam ferramentas para
+  <em>visualizar</em> e <em>comparar</em> esse processo. Esta dissertação investiga o uso de UMAP com alinhamento temporal
+  para projetar o espaço de pesos de redes neuroevoluídas. Partindo da pergunta prática de qual <strong>métrica de distância</strong>
+  usar, a investigação revela um <strong>mistério</strong> — em controle (HalfCheetah) o espaço de pesos não organiza a fitness —
+  cuja <strong>causa</strong> são as simetrias da rede (permutação de neurônios, sinal, escala), que espalham soluções
+  funcionalmente idênticas. Mostramos que espaços <strong>invariantes a essas simetrias</strong> (comportamental e de grafo)
+  resolvem o problema e estendem o método para topologia variável. Por fim, demonstramos uma <strong>recompensa</strong>: um
+  ajuste conjunto de UMAP no espaço de pesos revela <strong>assinaturas geométricas de busca</strong> específicas de cada
+  algoritmo de Evolution Strategy — validadas como invariantes à tarefa em 4+ benchmarks. Todos os 25 experimentos são
+  reprodutíveis; um sanity-check (ES em funções com ótimo conhecido) foi decisivo ao revelar e corrigir um erro de sinal na otimização.</p>
+  <p><strong>Palavras-chave:</strong> neuroevolução · visualização de espaço de pesos · UMAP · Evolution Strategies ·
+  simetrias de redes neurais · quality-diversity · embeddings de grafo.</p>
+
+  <h2 id="objetivos">Objetivos e perguntas de pesquisa</h2>
+  <p>O trabalho se organiza em torno de quatro perguntas, cada uma correspondendo a uma parte do corpo:</p>
+  <ul>
+    <li><strong>PP1.</strong> Como projetar fielmente populações neuroevoluídas em 2D/3D? Qual métrica de distância e quais hiperparâmetros? <em>(Partes 0–1)</em></li>
+    <li><strong>PP2.</strong> O espaço de pesos organiza a fitness das soluções? Caso não, qual espaço o faz? <em>(Parte 2)</em></li>
+    <li><strong>PP3.</strong> Por que algoritmos distintos não convergem ao mesmo ponto, mesmo achando soluções equivalentes? <em>(Parte 3)</em></li>
+    <li><strong>PP4.</strong> A geometria da projeção permite caracterizar e comparar algoritmos de busca? É invariante à tarefa? <em>(Parte 4)</em></li>
+  </ul>
+
+  <h2 id="contribuicoes">Contribuições</h2>
+  <ul>
+    <li><strong>C1 — Metodológica:</strong> protocolo de UMAP com alinhamento temporal para neuroevolução, com escolha
+    fundamentada de métrica (euclidean/mahalanobis) e dimensão (3D &gt; 2D para organização de fitness, +67%).</li>
+    <li><strong>C2 — Diagnóstica:</strong> demonstração empírica de que o espaço de pesos é cego à equivalência funcional, e que
+    espaços comportamental/de grafo a recuperam — incluindo prova de invariância à permutação (razão intra/entre ≈ 10⁻¹⁵).</li>
+    <li><strong>C3 — Analítica:</strong> identificação de <em>assinaturas geométricas de busca</em> por algoritmo, validadas
+    como invariantes à tarefa em 4+ benchmarks, e quantificadas (fragmentação, compactness, dinâmica).</li>
+    <li><strong>C4 — Reprodutibilidade:</strong> 25 experimentos versionados e re-executáveis; sanity-checks que capturaram um
+    erro de sinal na otimização antes de qualquer conclusão.</li>
+  </ul>
+
+  <p style="font-style:italic;color:#555">As seções a seguir são apresentadas como uma <strong>investigação</strong> — pergunta →
+  mistério → causa → recompensa — e não como lista cronológica. Cada experimento traz <em>o que</em>, <em>como</em> e <em>como replicar</em>.</p>
 
   <div class="key"><strong>Como replicar (geral).</strong> Ambiente <code class="inline">pixi</code> em
   <code class="inline">supplementary/</code>: <code class="inline">pixi run python experiments/&lt;arquivo&gt;.py</code>.
@@ -88,12 +124,23 @@
   <code class="inline">brax/.venv</code> (<code class="inline">.venv/bin/python &lt;script&gt;.py</code>).
   Figuras → <code class="inline">figures/</code>, métricas → <code class="inline">results/</code>.</div>
 
+  <div class="warn"><strong>Correção de integridade.</strong> Um sanity-check (Exp 25) revelou que o evosax
+  desta versão <strong>minimiza</strong> a fitness; o harness de geração passava o sinal trocado, fazendo
+  3 dos 4 algoritmos de ES <strong>otimizarem ao contrário</strong>. Os geradores foram corrigidos e todos os
+  runs de ES regenerados. As <em>assinaturas geométricas</em> (Seção 4) resistem à correção — refletem a mecânica do
+  operador, não a direção da otimização —, mas conclusões de <em>qualidade de fitness</em> foram recalculadas. É um
+  exemplo de por que o sanity-check é prioridade.</div>
+
   <h2>Índice</h2>
   <nav class="toc">
+    <a class="sec" href="#resumo">Resumo · Objetivos · Contribuições</a>
+    <a class="sec" href="#background">Background teórico</a>
+    <a class="sec" href="#metodologia">Metodologia</a>
     <a class="sec" href="#setup">0. Setup: o método funciona?</a>
     <a href="#e1">· Exp 1 — Robustez multi-seed</a>
     <a href="#e3">· Exp 3 — Ablação do alinhamento (λ)</a>
     <a href="#e5">· Exp 5 — Busca de hiperparâmetros</a>
+    <a href="#e25">· Exp 25 — Sanity-check dos ES</a>
     <a href="#e11">· Exp 11 — Quais benchmarks aprenderam</a>
     <a class="sec" href="#metricas">1. Qual métrica de distância?</a>
     <a href="#e8">· Exp 8 — Todas as métricas</a>
@@ -112,15 +159,69 @@
     <a href="#e17">· Exp 17 — Joint UMAP dos 4 ES</a>
     <a href="#e18">· Exp 18 — Multi-seed, run longa, 3D</a>
     <a href="#e19">· Exp 19 — Joint UMAP no make_moons</a>
+    <a href="#e24">· Exp 24 — Assinaturas cross-task</a>
     <a href="#e20">· Exp 20 — GIFs de evolução temporal</a>
     <a href="#e22">· Exp 22 — Curvas de dinâmica</a>
+    <a class="sec" href="#ferramentas">5. Ferramentas interativas e escala</a>
+    <a class="sec" href="#aplicacao">6. Aplicação: convergência prematura</a>
     <a class="sec" href="#conclusoes">Conclusões</a>
+    <a class="sec" href="#limitacoes">Limitações e trabalhos futuros</a>
     <a class="sec" href="#apendice">Apêndice — validações</a>
     <a href="#e2">· Exp 2 — Baselines de projeção</a>
     <a href="#e4">· Exp 4 — Teste sintético</a>
     <a href="#e6">· Exp 6 — Geração única</a>
     <a href="#e7">· Exp 7 — Escala (1M+)</a>
   </nav>
+
+  <!-- ================= BACKGROUND ================= -->
+  <h2 id="background">Background teórico</h2>
+  <p><strong>Neuroevolução.</strong> Algoritmos populacionais otimizam pesos de redes por mutação e seleção, mantendo uma
+  <em>população</em> de indivíduos por geração (resistência a ótimos locais, paralelismo implícito). Estudamos MLPs de uma
+  camada oculta com seleção elitista — baseline simples usado em estudos de larga escala.</p>
+  <figure><img src="figures/concept_neuroevolution_loop.png" alt="loop de neuroevolução" style="max-width:560px">
+    <figcaption>O laço de neuroevolução: avaliar fitness → selecionar elite → mutar → repetir.</figcaption></figure>
+  <figure><img src="figures/concept_nn_mlp_theta.png" alt="MLP como vetor de pesos" style="max-width:520px">
+    <figcaption>Cada rede é um ponto θ no espaço de pesos; uma população é uma nuvem de pontos de alta dimensão.</figcaption></figure>
+
+  <p><strong>Por que population-level importa (teoria).</strong> Evidências recentes mostram que a neuroevolução não é só um
+  SGD sem gradiente: Lehman et al. mostram que Evolution Strategies otimizam a recompensa <em>média</em> da população perturbada
+  (buscando regiões robustas, não o gradiente pontual); Kumar et al. argumentam que o SGD tende a representações
+  <em>fractured/entangled</em>, enquanto a busca evolutiva aberta pode achar representações mais unificadas. A estrutura
+  relevante (multimodalidade, coexistência de bacias, fluxo) vive na <em>geometria da população</em> — invisível em curvas de
+  fitness escalares. Daí a motivação de visualizá-la.</p>
+
+  <p><strong>UMAP e alinhamento temporal.</strong> UMAP preserva estrutura local e global via aproximação de variedade.
+  O desafio em dados sequenciais é que cada projeção independente difere por rotação/reflexão/translação arbitrária. Adaptamos a
+  metodologia de campo vetorial sobre projeções alinhadas de Cantareira et al. (originalmente para ativações de uma rede ao
+  longo do treino) para <em>populações</em> de redes ao longo de gerações.</p>
+  <figure><img src="figures/concept_aligned_vs_unaligned.png" alt="alinhado vs não-alinhado" style="max-width:640px">
+    <figcaption>Sem alinhamento, gerações sucessivas giram/transladam arbitrariamente; o alinhamento ancora-as num sistema de coordenadas comum.</figcaption></figure>
+
+  <!-- ================= METODOLOGIA ================= -->
+  <h2 id="metodologia">Metodologia</h2>
+  <figure><img src="figures/pipeline_diagram.png" alt="pipeline" >
+    <figcaption><strong>Pipeline.</strong> A cada geração a população (nuvem de vetores de peso) é projetada conjuntamente em
+    2D por UMAP; um passo de alinhamento (λ=0.8) reduz o drift entre gerações; do alinhamento deriva-se um <em>campo de
+    velocidade populacional</em> (deslocamento médio por célula de grade), revelando bacias de convergência e multimodalidade.</figcaption></figure>
+
+  <p><strong>UMAP alinhado (ancoragem por referência).</strong> Todos os indivíduos de todas as gerações são projetados num
+  único UMAP (sistema de coordenadas compartilhado), e cada geração é interpolada em direção à geração 0:</p>
+  <p style="text-align:center; font-size:16px">Z̃<sub>k</sub> = (1 − λ)·Z<sub>k</sub> + λ·Z<sub>ref</sub>,
+    &nbsp; λ ∈ [0,1] &nbsp; (λ=0: cru; λ=1: colapsa na referência; usamos <strong>λ=0.8</strong>).</p>
+
+  <p><strong>Campos de velocidade populacional.</strong> A partir das projeções alinhadas, particiona-se o espaço numa grade
+  22×22; para cada célula computa-se o deslocamento médio dos indivíduos da geração k→k+1, renderizado como streamline.
+  É a visualização central que distingue convergência radial (uma bacia) de fluxo ramificado (multimodal).</p>
+
+  <p><strong>Métricas.</strong> <em>Spread</em> (desvio das coordenadas alinhadas) — dispersão; <em>coerência temporal</em>
+  (TC, |Pearson| entre projeções sucessivas) — preservação do arranjo; <em>taxa de convergência</em> — geração que atinge 95%
+  da melhora de fitness. Em seções posteriores acrescentamos <em>coerência local de fitness</em> (k-NN), fragmentação (DBSCAN)
+  e compactness para caracterizar algoritmos.</p>
+
+  <div class="key"><strong>Relação com o paper.</strong> As seções 0–1 e o Apêndice correspondem ao paper NeurIPS
+  (<em>"Beyond Fitness Curves"</em>): campos de velocidade, UMAP alinhado, robustez multi-seed, baselines, ablação de λ e
+  validação sintética. As seções 2–4 (espaço comportamental/grafo, simetrias, assinaturas cross-task e dinâmica) são a
+  <strong>extensão da dissertação</strong> além do paper.</div>
 
   <!-- ================= SEÇÃO 0 ================= -->
   <h2 id="setup">0. Setup: o método funciona?</h2>
@@ -156,6 +257,18 @@
       <figcaption>Efeito de λ na projeção.</figcaption></figure>
     <figure><img src="figures/exp3_tc_curve.png" alt="exp3 tc">
       <figcaption>Coerência temporal vs. λ.</figcaption></figure>
+    <table>
+      <tr><th>λ</th><th>coerência temporal</th><th>atratores</th><th>spread σ₁</th><th>veredito</th></tr>
+      <tr><td>0.0</td><td>0.25</td><td>85</td><td>8.58</td><td>drift — incomparável entre gerações</td></tr>
+      <tr><td>0.2</td><td>0.25</td><td>50</td><td>6.88</td><td>ainda solto</td></tr>
+      <tr><td>0.4</td><td>0.25</td><td>23</td><td>5.20</td><td>melhora</td></tr>
+      <tr><td>0.6</td><td>0.29</td><td>14</td><td>3.53</td><td>bom</td></tr>
+      <tr><td><strong>0.8</strong></td><td><strong>0.60</strong></td><td>19</td><td><strong>1.88</strong></td><td>✅ melhor trade-off (alta TC + spread útil)</td></tr>
+      <tr><td>1.0</td><td>1.00</td><td>80</td><td>0.93</td><td>colapsa na referência (TC trivial, estrutura destruída)</td></tr>
+    </table>
+    <p class="how"><em>Por que λ=0.8 (dados reais, make_moons):</em> a TC dá um salto real em 0.8 (0.29→0.60) — não há "plateau"
+    em [0.6,0.9]. Em λ=1.0 a TC vira 1.0 por construção (tudo colapsa na referência, spread 0.93, estrutura destruída). O 0.8
+    é o ponto que combina coerência alta com spread interpretável (1.88).</p>
   </div>
 
   <div class="exp" id="e5">
@@ -185,6 +298,21 @@
     <pre>pixi run python experiments/11_evolution_summary.py</pre>
     <figure><img src="figures/exp11_evolution_summary.png" alt="exp11">
       <figcaption>Topo: fitness por geração. Base: projeção UMAP por geração.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e25">
+    <h3>Exp 25 — Sanity-check dos ES (funções com ótimo conhecido)</h3>
+    <span class="chip">sphere + rastrigin</span><span class="chip">validação de corretude</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Roda os 4 ES em funções com ótimo conhecido (0): sphere (convexa) e rastrigin (multimodal). Confirma a
+    ordem esperada — <strong>CMA/sep-CMA zeram a sphere (0.0000)</strong>, GA é o mais fraco. <em>Este experimento revelou o
+    bug de sinal</em> (ver nota de integridade): antes da correção, todos divergiam.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">evosax em <code class="inline">brax/.venv</code>; <code class="inline">tell(objetivo)</code> (evosax minimiza); curvas best-so-far (log), 3 seeds.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>cd brax &amp;&amp; .venv/bin/python es_sanity.py</pre>
+    <figure><img src="figures/exp25_es_sanity.png" alt="exp25">
+      <figcaption>Convergência (best objetivo, escala log) em sphere e rastrigin — CMA domina, GA fica para trás.</figcaption></figure>
   </div>
 
   <!-- ================= SEÇÃO 1 ================= -->
@@ -316,6 +444,10 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
   <h2 id="explicacao">3. A explicação: simetrias da rede</h2>
   <p class="bridge">O 3D ajudou, mas não explicou a <em>causa</em>. A pergunta de fundo permanecia: por que redes de fitness
   igual ficam longe no espaço de pesos? Aqui está a resposta — e ela amarra todo o mistério da Seção 2.</p>
+  <div class="key"><strong>Extensão sobre o paper.</strong> O paper NeurIPS <em>levanta a permutação de neurônios como
+  hipótese não investigada</em> para a diferença de multimodalidade entre benchmarks (§Discussão: "any permutation of hidden
+  neurons produces a functionally equivalent network… disentangling these mechanisms is left for future work"). Esta seção
+  <strong>fecha essa lacuna</strong>: demonstra empiricamente a simetria (Exp 21) e propõe a cura (Exp 23).</div>
 
   <div class="exp" id="e21">
     <h3>Exp 21 — Longe nos pesos, perto na função</h3>
@@ -330,7 +462,10 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/21_functional_equivalence.py</pre>
     <figure><img src="figures/exp21_functional_equivalence.png" alt="exp21">
-      <figcaption>Quatro fronteiras de decisão idênticas, de pesos muito distantes.</figcaption></figure>
+      <figcaption><strong>Figura 3.1.</strong> Fronteiras de decisão dos melhores indivíduos de cada algoritmo no make_moons.
+      <em>Como ler:</em> cada painel é uma rede; o fundo (azul/vermelho) é a probabilidade prevista, a linha preta é a fronteira.
+      As quatro fronteiras são praticamente idênticas (correlação de saídas 0.85–0.98) apesar de os vetores de peso distarem
+      ~15–22 entre si — evidência direta de que fitness igual ≠ pesos próximos.</figcaption></figure>
   </div>
 
   <div class="exp" id="e23">
@@ -345,7 +480,10 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/23_graph_embedding_demo.py</pre>
     <figure><img src="figures/exp23_graph_embedding_demo.png" alt="exp23">
-      <figcaption>Esquerda: pesos embaralham as cópias. Direita: espectro de grafo as colapsa por função.</figcaption></figure>
+      <figcaption><strong>Figura 3.2.</strong> Quatro funções, cada uma com 20 cópias de neurônios permutados (idênticas em função).
+      <em>Como ler:</em> cor = função; pontos da mesma cor deveriam coincidir. À esquerda (espaço de pesos) as cores se
+      <em>embaralham</em> — permutações ficam tão longe quanto funções diferentes (razão intra/entre = 0.96). À direita
+      (espectro do Laplaciano) cada função colapsa num ponto (razão ≈ 10⁻¹⁵): o espaço de grafo é invariante à permutação.</figcaption></figure>
     <div class="warn"><strong>Limite.</strong> O espectro usado descarta o sinal dos pesos (usa |w|). Para fidelidade total,
     usar WL kernel com pesos com sinal ou embeddings de GNN.</div>
   </div>
@@ -360,7 +498,9 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <span class="chip">16.000 indivíduos</span><span class="chip">fit único</span>
     <div class="grid-label">O que</div>
     <p class="what">Cada ES tem uma <strong>assinatura geométrica</strong>: GA fragmentado em ilhas, OpenES bolha compacta,
-    CMA/sep-CMA fitas suaves. Cobertura ≠ qualidade: o GA cobre mais e tem a pior fitness; OpenES o oposto.</p>
+    CMA/sep-CMA fitas suaves. <strong>Cobertura ≠ qualidade:</strong> o GA cobre o maior volume (1087) e tem a <em>pior</em>
+    fitness (89.7), enquanto o CMA-ES, com cobertura moderada, atinge a <em>melhor</em> (647.6); o OpenES é o mais compacto mas
+    fica em 3º. Espalhar-se no espaço de pesos não é exploração produtiva.</p>
     <div class="grid-label">Como</div>
     <p class="how">Empilha as populações de todos os algoritmos e ajusta um único <code class="inline">umap.UMAP</code> (euclidean, seed fixa).</p>
     <div class="grid-label">Replicar</div>
@@ -389,10 +529,10 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
       <figcaption>(c) GIF — rotação 3D (anima no navegador; no PDF aparece o 1º frame).</figcaption></figure>
     <table>
       <tr><th>algoritmo</th><th>clusters</th><th>compactness</th><th>coverage</th><th>best fit</th></tr>
-      <tr><td>Simple GA</td><td>142</td><td>12.85</td><td>1111</td><td>89.7</td></tr>
-      <tr><td>OpenES</td><td>11</td><td>0.60</td><td>34</td><td>321.3</td></tr>
-      <tr><td>CMA-ES</td><td>50</td><td>5.97</td><td>251</td><td>191.7</td></tr>
-      <tr><td>sep-CMA-ES</td><td>47</td><td>4.49</td><td>128</td><td>208.9</td></tr>
+      <tr><td>Simple GA</td><td>143</td><td>12.30</td><td>1087</td><td>89.7</td></tr>
+      <tr><td>OpenES</td><td>15</td><td>0.60</td><td>22.5</td><td>305.8</td></tr>
+      <tr><td>CMA-ES</td><td>45</td><td>4.27</td><td>210</td><td><strong>647.6</strong></td></tr>
+      <tr><td>sep-CMA-ES</td><td>40</td><td>3.70</td><td>120</td><td>523.4</td></tr>
     </table>
   </div>
 
@@ -411,6 +551,30 @@ cd ../supplementary &amp;&amp; pixi run python experiments/19_joint_es_moons.py<
       <figcaption>Joint UMAP no make_moons: por algoritmo | por fitness.</figcaption></figure>
     <figure><img src="figures/exp19_moons_joint_3d.gif" alt="exp19 gif">
       <figcaption>GIF 3D rotacionando (make_moons).</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e24">
+    <h3>Exp 24 — As assinaturas são invariantes à tarefa? (validação cross-task)</h3>
+    <span class="chip">4 tasks × 3 seeds</span><span class="chip">blobs/moons/circles/xor</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Responde à principal fraqueza apontada em revisão: a alegação "invariante à tarefa" se apoiava em 2 tasks.
+    Aqui os 4 ES rodam em <strong>4 tarefas de classificação</strong> (dificuldade crescente: blobs &lt; moons &lt; circles &lt; xor).
+    Resultado: a assinatura se mantém em <em>todas</em> — o <strong>Simple GA fragmenta em 118–130 clusters</strong> e é o mais
+    espalhado (compactness 4–5× a mediana) em cada task; os ES de distribuição ficam compactos (3–20 clusters). Padrão idêntico.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">Datasets via sklearn; runs por <code class="inline">brax/moons_evosax.py --task</code>; fragmentação medida no
+    UMAP 2D (DBSCAN), compactness no espaço de pesos cru (relativa por task).</p>
+    <div class="grid-label">Replicar</div>
+    <pre>cd brax &amp;&amp; for t in circles blobs xor; do .venv/bin/python moons_evosax.py --all_algos --seed 42 --task $t; done
+cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatures.py</pre>
+    <figure><img src="figures/exp24_cross_task_umaps.png" alt="exp24 umaps">
+      <figcaption><strong>Figura 4.1.</strong> Ajuste conjunto de UMAP por tarefa (seed 42), cor = algoritmo.
+      <em>Como ler:</em> compare a forma de cada cor entre os quatro painéis. O Simple GA (azul) fragmenta em ilhas dispersas
+      em <em>todas</em> as tarefas; os ES de distribuição (laranja/verde/vermelho) formam bolhas/fitas compactas. A assinatura é a mesma.</figcaption></figure>
+    <figure><img src="figures/exp24_cross_task_heatmap.png" alt="exp24 heatmap">
+      <figcaption><strong>Figura 4.2.</strong> Quantificação das assinaturas (tarefa × algoritmo). <em>Como ler:</em> linhas mais
+      escuras = mais fragmentado/espalhado. A linha do Simple GA é uniformemente escura (118–130 clusters; compactness 4–5× a
+      mediana) em todas as colunas — confirmação numérica da invariância à tarefa.</figcaption></figure>
   </div>
 
   <div class="exp" id="e20">
@@ -432,7 +596,9 @@ cd ../supplementary &amp;&amp; pixi run python experiments/19_joint_es_moons.py<
     <span class="chip">espaço de pesos cru</span>
     <div class="grid-label">O que</div>
     <p class="what">Converte a leitura visual em séries temporais: dispersão (contração=convergência), velocidade do centróide e
-    fitness. Desambigua: uma "fita" pode ser convergência saudável (HalfCheetah-CMA) ou <strong>divergência</strong> (moons-CMA).</p>
+    fitness. Desambigua o que a geometria sozinha não diz: o <strong>CMA-ES contrai</strong> (spread final/inicial 0.37–0.78 →
+    convergência saudável) nos dois benchmarks, enquanto o <strong>Simple GA expande</strong> (ratio 4.18 → dispersão sem
+    convergência); o <strong>OpenES é estacionário</strong> (deriva ≈ 0). Mesma "fita" visual, dinâmicas distintas reveladas pelas curvas.</p>
     <div class="grid-label">Como</div>
     <p class="how">Métricas no espaço de pesos cru (não no embedding, que distorce distâncias).</p>
     <div class="grid-label">Replicar</div>
@@ -450,8 +616,127 @@ cd ../supplementary &amp;&amp; pixi run python experiments/19_joint_es_moons.py<
     <li><strong>O mistério e sua causa:</strong> o espaço de pesos é cego à equivalência funcional — simetrias (permutação/sinal/escala)
     espalham soluções idênticas. É por isso que a fitness não se organiza ali.</li>
     <li><strong>A cura:</strong> espaço comportamental (rico) ou de grafo (invariante a permutação) — que também estende para topologia variável.</li>
-    <li><strong>A recompensa:</strong> o fit conjunto no espaço de pesos revela assinaturas geométricas de busca invariantes à tarefa; cobertura ≠ qualidade.</li>
+    <li><strong>A recompensa:</strong> o fit conjunto no espaço de pesos revela assinaturas geométricas de busca
+    <strong>invariantes à tarefa — validado em 4+ tarefas</strong> (blobs/moons/circles/xor + HalfCheetah): o Simple GA
+    fragmenta em todas, ES de distribuição ficam compactos.</li>
+    <li><strong>Aplicação:</strong> a dinâmica populacional (diversidade/velocidade) é um <strong>sinal de alerta precoce</strong>
+    de convergência prematura — legível já na geração ~5, com ~50 gerações de antecedência sobre o platô de fitness. Demonstra
+    concretamente a utilidade proposta (e não mostrada) no paper.</li>
+    <li><strong>Corretude:</strong> sanity-checks (ES em funções com ótimo conhecido) são essenciais — pegaram um bug de
+    sinal que invertia a otimização. Sempre validar o otimizador antes de interpretar resultados.</li>
     <li><strong>Escopo:</strong> toda a análise pressupõe <strong>topologia fixa</strong>.</li>
+  </ul>
+
+  <!-- ============ SEÇÃO 5: FERRAMENTAS ============ -->
+  <h2 id="ferramentas">5. Ferramentas interativas e visualização em escala</h2>
+  <p class="bridge">Além das figuras estáticas, o projeto inclui ferramentas para <em>explorar</em> as projeções de forma
+  interativa e para renderizar populações de 1M+ pontos — material que complementa a dissertação como infraestrutura.</p>
+
+  <div class="exp">
+    <h3>Ferramenta interativa (Streamlit + Plotly)</h3>
+    <span class="chip">UMAP alinhado</span><span class="chip">campo de velocidade</span><span class="chip">tempo real</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Interface web que expõe os componentes do método (UMAP alinhado + campo de velocidade) com controles de
+    população, gerações, dimensão oculta, taxa de mutação e λ, alternando entre render estático (Matplotlib) e interativo (Plotly,
+    com hover/zoom/pan). É o que atende ao pedido de <em>interatividade</em> sem reconstruir nada.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>cd supplementary &amp;&amp; pixi run app      # ou: pixi run python -m streamlit run app.py</pre>
+    <figure><img src="figures/streamlit_quiver_app.png" alt="streamlit plotly">
+      <figcaption>Modo Plotly — campo de velocidade (quiver) colorido por geração (esq.) e fitness (dir.), com pontos hoveráveis.</figcaption></figure>
+    <figure><img src="figures/streamlit_quiver_detail.png" alt="streamlit detalhe">
+      <figcaption>Detalhe interativo: densidade de fundo + setas revelam a bacia de convergência dominante e a estrutura multimodal.</figcaption></figure>
+  </div>
+
+  <div class="exp">
+    <h3>Visualização em escala (Datashader / Panel / HoloViews)</h3>
+    <span class="chip">1M+ pontos</span><span class="chip">HalfCheetah real</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Pipeline datashader que renderiza populações enormes por agregação em histograma (O(grid²), independe de n) —
+    explorador interativo (<code class="inline">interactive_datashader.py</code>) e figura-resumo composta por seed.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>cd supplementary &amp;&amp; pixi run panel serve ../brax/interactive_datashader.py --show
+# figura composta:  cd brax &amp;&amp; .venv/bin/python figure_summary.py</pre>
+    <figure><img src="figures/datashader_stress_summary.png" alt="datashader summary">
+      <figcaption>Resumo composto (datashader): curvas de fitness + campos de velocidade por seed, em escala.</figcaption></figure>
+  </div>
+
+  <div class="exp">
+    <h3>Trajectory bundling</h3>
+    <span class="chip">viz complementar</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Agrupamento de trajetórias (edge bundling) com transparência adaptativa e destaque da melhor trajetória —
+    leitura alternativa do fluxo evolutivo, complementar ao campo de velocidade.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>supplementary/visualizations/trajectory_bundling.py</pre>
+    <figure><img src="figures/concept_best_trajectory.png" alt="best trajectory" style="max-width:600px">
+      <figcaption>Trajetórias agrupadas com destaque da melhor — fluxo da população rumo ao atrator.</figcaption></figure>
+  </div>
+
+  <!-- ============ SEÇÃO 6: APLICAÇÃO ============ -->
+  <h2 id="aplicacao">6. Aplicação: detecção de convergência prematura</h2>
+  <p class="bridge">O paper <em>propõe</em> usar a geometria da população como sinal de alerta precoce, mas não demonstra.
+  Aqui fechamos essa lacuna: mostramos que a dinâmica populacional prediz convergência prematura cedo o bastante para intervir.</p>
+
+  <div class="exp" id="e26">
+    <h3>Exp 26 — Dinâmica populacional como alerta precoce</h3>
+    <span class="chip">make_moons</span><span class="chip">σ ∈ {0.02…0.20}</span><span class="chip">3 seeds</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Variando a escala de mutação σ, induzimos regimes do congelado ao caótico e rastreamos por geração: fitness,
+    <strong>diversidade populacional</strong> e <strong>velocidade do centróide</strong> (a essência escalar do campo de velocidade).
+    Achado: a <strong>diversidade inicial (gerações 1–5) prediz a fitness final</strong> — um U invertido em que diversidade
+    baixa demais (congelado, σ=0.02 → fitness −0.26) <em>ou</em> alta demais (caótico, σ=0.20 → −0.21) pioram; o regime
+    saudável (σ=0.11) vence (−0.17). O colapso de diversidade do σ=0.02 é detectável já na geração ~3, contra o platô de
+    fitness só por volta da geração ~53 — <strong>~50 gerações de antecedência</strong> para intervir.</p>
+    <div class="grid-label">Como</div>
+    <p class="how">GA do supplementary (otimização correta, sem evosax); diversidade = distância média ao centróide no espaço de
+    pesos cru; alerta = colapso de diversidade enquanto a fitness ainda é baixa.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/26_premature_convergence.py</pre>
+    <figure><img src="figures/exp26_premature_convergence.png" alt="exp26 curves">
+      <figcaption><strong>Figura 6.1.</strong> Fitness, diversidade e velocidade por geração para cada σ. <em>Como ler:</em> o
+      σ=0.02 (roxo) tem diversidade e velocidade próximas de zero desde o início (população congelada) e a pior fitness.</figcaption></figure>
+    <figure><img src="figures/exp26_premature_diagnostic.png" alt="exp26 diagnostic">
+      <figcaption><strong>Figura 6.2.</strong> Diversidade inicial (gen 1–5) × fitness final, um ponto por (σ, seed).
+      <em>Como ler:</em> o regime é legível na geração 5 — congelado (esquerda-baixo) e caótico (direita-baixo) são ambos ruins;
+      o ótimo (σ=0.11) fica no topo. Sinal acionável de convergência prematura.</figcaption></figure>
+  </div>
+
+  <div class="exp" id="e27">
+    <h3>Exp 27 — Alocação de offspring guiada por localização de fitness</h3>
+    <span class="chip">make_moons</span><span class="chip">5 seeds</span><span class="chip">3 estratégias</span>
+    <div class="grid-label">O que</div>
+    <p class="what">Segunda aplicação proposta no paper: usar a localização espacial dos indivíduos de alta fitness para alocar
+    offspring de forma não-uniforme. Comparamos três estratégias de seleção de pais num GA idêntico: <em>uniforme</em> (baseline),
+    <em>fitness-weighted</em> (concentra nos melhores — "ao redor do atrator") e <em>diversity-weighted</em> (favorece elites
+    espalhados). Resultado: a <strong>fitness-weighted vence</strong> (−0.168 vs −0.174 do baseline) <strong>com menor variância</strong>
+    (±0.005 vs ±0.008) — ganho modesto mas consistente.</p>
+    <div class="grid-label">Como / ressalva honesta</div>
+    <p class="how">GA do supplementary com probabilidade de pais configurável. A fitness-weighted reduz a diversidade (painel direito) —
+    no make_moons (quase-unimodal) isso ajuda, mas em tarefas multimodais a mesma concentração arriscaria convergência prematura
+    (liga ao Exp 26). A geometria, portanto, serve para <em>balancear</em> exploração e explotação, não só concentrar.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/27_offspring_allocation.py</pre>
+    <figure><img src="figures/exp27_offspring_allocation.png" alt="exp27">
+      <figcaption><strong>Figura 6.3.</strong> Fitness e diversidade por geração (5 seeds). <em>Como ler:</em> a fitness-weighted
+      (vermelho) tem a melhor fitness e a menor diversidade; a diversity-weighted (verde) mantém mais diversidade. A geometria
+      permite escolher o ponto do trade-off.</figcaption></figure>
+  </div>
+
+  <!-- ============ LIMITAÇÕES ============ -->
+  <h2 id="limitacoes">Limitações e trabalhos futuros</h2>
+  <ul>
+    <li><strong>Topologia fixa.</strong> Todo o método assume redes de mesma dimensão (necessário para distâncias no espaço
+    de pesos). Topologia variável (NEAT) exige espaços invariantes — comportamental ou de grafo (Exp 23 é o primeiro passo).</li>
+    <li><strong>Espectro de grafo descarta o sinal dos pesos</strong> (usa |w|). Trabalho futuro: WL kernel com pesos com sinal
+    ou embeddings de GNN, que preservam mais estrutura.</li>
+    <li><strong>Descritor comportamental é dependente de domínio.</strong> No HalfCheetah, um descritor cinemático ingênuo é
+    anti-correlacionado com a fitness; descritores fitness-aware ricos funcionam melhor, mas exigem conhecimento da tarefa.</li>
+    <li><strong>Escala de validação.</strong> Cross-task cobre 4 tarefas de classificação 2D + HalfCheetah; estender a mais
+    domínios de controle (CartPole, MountainCar) e a redes maiores reforçaria a generalidade.</li>
+    <li><strong>Estocasticidade de RL.</strong> A fitness do HalfCheetah tem alta variância intra-geração; múltiplos episódios
+    por avaliação reduziriam ruído nas projeções coloridas por fitness.</li>
+    <li><strong>Apresentação.</strong> Projeções 3D ganham com interatividade (rotação/zoom/hover) — versão interativa (Plotly)
+    é um próximo passo natural para exploração.</li>
   </ul>
 
   <!-- ============ APÊNDICE ============ -->

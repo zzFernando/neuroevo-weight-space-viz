@@ -25,7 +25,7 @@ bokeh = ">=3.4"
 scienceplots = ">=2.1"
 
 [tasks]
-app = "streamlit run app.py"
+app = "python -m streamlit run app.py"
 figs = "python generate_figs.py"
 alignment-demo = "python generate_alignment_demo.py"
 viz-brax = "panel serve ../brax/interactive_datashader.py --show --autoreload --port 5007"
