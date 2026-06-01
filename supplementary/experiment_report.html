@@ -160,6 +160,7 @@
     <a href="#e18">· Exp 18 — Multi-seed, run longa, 3D</a>
     <a href="#e19">· Exp 19 — Joint UMAP no make_moons</a>
     <a href="#e24">· Exp 24 — Assinaturas cross-task</a>
+    <a href="#e28">· Exp 28 — Confound de multimodalidade</a>
     <a href="#e20">· Exp 20 — GIFs de evolução temporal</a>
     <a href="#e22">· Exp 22 — Curvas de dinâmica</a>
     <a class="sec" href="#ferramentas">5. Ferramentas interativas e escala</a>
@@ -577,6 +578,31 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
       mediana) em todas as colunas — confirmação numérica da invariância à tarefa.</figcaption></figure>
   </div>
 
+  <div class="exp" id="e28">
+    <h3>Exp 28 — Resolvendo o confound de multimodalidade do paper (ablação controlada)</h3>
+    <span class="chip">controlado</span><span class="chip">dim vs σ vs largura</span><span class="chip">3 seeds</span>
+    <div class="grid-label">O que</div>
+    <p class="what">O paper observa que make_moons (compacto) e CIFAR-10 (multimodal) diferem — mas em <em>dimensão, σ de mutação
+    E arquitetura ao mesmo tempo</em> — e deixa o desentrelaçamento como trabalho futuro. Aqui variamos <strong>um fator de cada
+    vez</strong> (base d_in=2, hidden=16, σ=0.11) e medimos a multimodalidade (spread σ₁ do UMAP alinhado). Resultado decisivo:</p>
+    <table>
+      <tr><th>fator variado</th><th>faixa de spread σ₁ (Δ)</th><th>papel</th></tr>
+      <tr><td>mutação σ (0.03→0.20)</td><td><strong>0.09</strong> (1.82→1.91)</td><td>quase nulo — <em>não</em> é o motor</td></tr>
+      <tr><td>largura oculta (8→64)</td><td>0.47 (1.74→2.21)</td><td>moderado</td></tr>
+      <tr><td><strong>dimensão de entrada (2→200)</strong></td><td><strong>0.60</strong> (1.91→2.51)</td><td>motor dominante</td></tr>
+    </table>
+    <div class="grid-label">Como / conclusão</div>
+    <p class="how">Tarefa = two-moons com dimensões de ruído (só as 2 primeiras informativas), para subir a dimensão de entrada
+    sem mudar a dificuldade; sem PCA (o fator varrido é a única mudança). <strong>A dimensionalidade dirige a multimodalidade; a
+    mutação σ praticamente não.</strong> Isso <em>fecha a fraqueza declarada no paper</em>: o σ (0.11 vs 0.05) está descartado como
+    causa, e a diferença make_moons↔CIFAR-10 é consistente com um efeito de <em>dimensionalidade</em>.</p>
+    <div class="grid-label">Replicar</div>
+    <pre>pixi run python experiments/28_controlled_confound.py</pre>
+    <figure><img src="figures/exp28_controlled_confound.png" alt="exp28">
+      <figcaption><strong>Figura 4.3.</strong> Spread σ₁ vs cada fator (um por painel, ±desvio de 3 seeds). <em>Como ler:</em> a
+      inclinação ∝ quanto o fator dirige a multimodalidade — input dim (dir.) é a mais íngreme; σ (esq.) é praticamente plana.</figcaption></figure>
+  </div>
+
   <div class="exp" id="e20">
     <h3>Exp 20 — GIFs de evolução temporal</h3>
     <span class="chip">dinâmica</span><span class="chip">geração a geração</span>
@@ -619,6 +645,8 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     <li><strong>A recompensa:</strong> o fit conjunto no espaço de pesos revela assinaturas geométricas de busca
     <strong>invariantes à tarefa — validado em 4+ tarefas</strong> (blobs/moons/circles/xor + HalfCheetah): o Simple GA
     fragmenta em todas, ES de distribuição ficam compactos.</li>
+    <li><strong>Confound resolvido:</strong> a multimodalidade é dirigida pela <strong>dimensionalidade</strong> (Δσ₁=0.60),
+    não pela mutação σ (Δσ₁=0.09) — fechando a ambiguidade que o paper deixou em aberto (Exp 28).</li>
     <li><strong>Aplicação:</strong> a dinâmica populacional (diversidade/velocidade) é um <strong>sinal de alerta precoce</strong>
     de convergência prematura — legível já na geração ~5, com ~50 gerações de antecedência sobre o platô de fitness. Demonstra
     concretamente a utilidade proposta (e não mostrada) no paper.</li>
