@@ -181,9 +181,9 @@
   <p><strong>Neuroevolução.</strong> Algoritmos populacionais otimizam pesos de redes por mutação e seleção, mantendo uma
   <em>população</em> de indivíduos por geração (resistência a ótimos locais, paralelismo implícito). Estudamos MLPs de uma
   camada oculta com seleção elitista — baseline simples usado em estudos de larga escala.</p>
-  <figure><img src="figures/concept_neuroevolution_loop.png" alt="loop de neuroevolução" style="max-width:560px">
+  <figure><img src="../../Experiments/figures/concept_neuroevolution_loop.png" alt="loop de neuroevolução" style="max-width:560px">
     <figcaption>O laço de neuroevolução: avaliar fitness → selecionar elite → mutar → repetir.</figcaption></figure>
-  <figure><img src="figures/concept_nn_mlp_theta.png" alt="MLP como vetor de pesos" style="max-width:520px">
+  <figure><img src="../../Experiments/figures/concept_nn_mlp_theta.png" alt="MLP como vetor de pesos" style="max-width:520px">
     <figcaption>Cada rede é um ponto θ no espaço de pesos; uma população é uma nuvem de pontos de alta dimensão.</figcaption></figure>
 
   <p><strong>Por que population-level importa (teoria).</strong> Evidências recentes mostram que a neuroevolução não é só um
@@ -197,12 +197,12 @@
   O desafio em dados sequenciais é que cada projeção independente difere por rotação/reflexão/translação arbitrária. Adaptamos a
   metodologia de campo vetorial sobre projeções alinhadas de Cantareira et al. (originalmente para ativações de uma rede ao
   longo do treino) para <em>populações</em> de redes ao longo de gerações.</p>
-  <figure><img src="figures/concept_aligned_vs_unaligned.png" alt="alinhado vs não-alinhado" style="max-width:640px">
+  <figure><img src="../../Experiments/figures/concept_aligned_vs_unaligned.png" alt="alinhado vs não-alinhado" style="max-width:640px">
     <figcaption>Sem alinhamento, gerações sucessivas giram/transladam arbitrariamente; o alinhamento ancora-as num sistema de coordenadas comum.</figcaption></figure>
 
   <!-- ================= METODOLOGIA ================= -->
   <h2 id="metodologia">Metodologia</h2>
-  <figure><img src="figures/pipeline_diagram.png" alt="pipeline" >
+  <figure><img src="../../Experiments/figures/pipeline_diagram.png" alt="pipeline" >
     <figcaption><strong>Pipeline.</strong> A cada geração a população (nuvem de vetores de peso) é projetada conjuntamente em
     2D por UMAP; um passo de alinhamento (λ=0.8) reduz o drift entre gerações; do alinhamento deriva-se um <em>campo de
     velocidade populacional</em> (deslocamento médio por célula de grade), revelando bacias de convergência e multimodalidade.</figcaption></figure>
@@ -242,7 +242,7 @@
     taxa de convergência; cacheado em <code class="inline">cache/exp1_*.npz</code>.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/01_multi_seed_robustness.py</pre>
-    <figure><img src="figures/exp1_multiseed.png" alt="exp1">
+    <figure><img src="../../Experiments/figures/exp1_multiseed.png" alt="exp1">
       <figcaption>Campos vetoriais: linhas = benchmarks, colunas = seeds.</figcaption></figure>
   </div>
 
@@ -256,9 +256,9 @@
     <p class="how">Varre <code class="inline">LAMBDA_SWEEP=[0,0.2,…,1.0]</code>; grid de 3 linhas (geração, fitness, campo vetorial) × 6 λ; curva de coerência.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/03_alignment_ablation.py</pre>
-    <figure><img src="figures/exp3_alignment_ablation.png" alt="exp3">
+    <figure><img src="../../Experiments/figures/exp3_alignment_ablation.png" alt="exp3">
       <figcaption>Efeito de λ na projeção.</figcaption></figure>
-    <figure><img src="figures/exp3_tc_curve.png" alt="exp3 tc">
+    <figure><img src="../../Experiments/figures/exp3_tc_curve.png" alt="exp3 tc">
       <figcaption>Coerência temporal vs. λ.</figcaption></figure>
     <table>
       <tr><th>λ</th><th>coerência temporal</th><th>atratores</th><th>spread σ₁</th><th>veredito</th></tr>
@@ -284,7 +284,7 @@
     <p class="how">Produto cartesiano <code class="inline">N_NEIGHBORS×MIN_DIST×LAMBDA</code>; grids scatter + campo vetorial; CSV de métricas.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/05_umap_param_search.py</pre>
-    <figure><img src="figures/exp5_umap_grid_la0.8.png" alt="exp5">
+    <figure><img src="../../Experiments/figures/exp5_umap_grid_la0.8.png" alt="exp5">
       <figcaption>Grid n_neighbors × min_dist (λ=0.8).</figcaption></figure>
   </div>
 
@@ -299,7 +299,7 @@
     <p class="how">Lê caches do Exp 1 (<code class="inline">cache/exp1_*.npz</code>) com mean_fitness e embeddings.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/11_evolution_summary.py</pre>
-    <figure><img src="figures/exp11_evolution_summary.png" alt="exp11">
+    <figure><img src="../../Experiments/figures/exp11_evolution_summary.png" alt="exp11">
       <figcaption>Topo: fitness por geração. Base: projeção UMAP por geração.</figcaption></figure>
   </div>
 
@@ -314,7 +314,7 @@
     <p class="how">evosax em <code class="inline">brax/.venv</code>; <code class="inline">tell(objetivo)</code> (evosax minimiza); curvas best-so-far (log), 3 seeds.</p>
     <div class="grid-label">Replicar</div>
     <pre>cd brax &amp;&amp; .venv/bin/python es_sanity.py</pre>
-    <figure><img src="figures/exp25_es_sanity.png" alt="exp25">
+    <figure><img src="../../Experiments/figures/exp25_es_sanity.png" alt="exp25">
       <figcaption>Convergência (best objetivo, escala log) em sphere e rastrigin — CMA domina, GA fica para trás.</figcaption></figure>
   </div>
 
@@ -334,7 +334,7 @@
     <code class="inline">compute_aligned_umap_embedding</code>; parâmetros (V, VI, p) derivados automaticamente.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/08_metric_comparison.py --force-rerun</pre>
-    <figure><img src="figures/exp8_metric_scatter_grid.png" alt="exp8">
+    <figure><img src="../../Experiments/figures/exp8_metric_scatter_grid.png" alt="exp8">
       <figcaption>Scatter por geração das 30 métricas que rodaram. Binárias viram grades degeneradas.</figcaption></figure>
   </div>
 
@@ -348,7 +348,7 @@
     <p class="how">Covariância do mahalanobis estimada no mesmo espaço do UMAP (após PCA no CIFAR-10), evitando mismatch.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/09_metric_validation.py</pre>
-    <figure><img src="figures/exp9_metric_validation.png" alt="exp9">
+    <figure><img src="../../Experiments/figures/exp9_metric_validation.png" alt="exp9">
       <figcaption>Coerência temporal e atratores (média ± desvio) por métrica e benchmark.</figcaption></figure>
   </div>
 
@@ -362,7 +362,7 @@
     <p class="how">PCA desativado; guard que pula o mahalanobis quando a dimensão excede ~2000 (evita OOM).</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/10_metric_projection_comparison.py</pre>
-    <figure><img src="figures/exp10_metric_projection_comparison.png" alt="exp10">
+    <figure><img src="../../Experiments/figures/exp10_metric_projection_comparison.png" alt="exp10">
       <figcaption>5 métricas × 2 benchmarks. Mahalanobis "intractable" no CIFAR-10 sem PCA.</figcaption></figure>
   </div>
 
@@ -376,7 +376,7 @@
     <p class="how">Pesos do HalfCheetah lidos de <code class="inline">brax/runs/simple_ga_seed42.npz</code> (390-dim, sem JAX).</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/12_metric_comparison_working.py</pre>
-    <figure><img src="figures/exp12_metric_comparison_working.png" alt="exp12">
+    <figure><img src="../../Experiments/figures/exp12_metric_comparison_working.png" alt="exp12">
       <figcaption>5 métricas × 2 benchmarks, colorido por geração.</figcaption></figure>
   </div>
 
@@ -390,7 +390,7 @@
     <p class="how">Fitness do make_moons reavaliada dos pesos cacheados; HalfCheetah lê <code class="inline">fitnesses</code> dos runs.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/13_metric_comparison_fitness.py</pre>
-    <figure><img src="figures/exp13_metric_comparison_fitness.png" alt="exp13">
+    <figure><img src="../../Experiments/figures/exp13_metric_comparison_fitness.png" alt="exp13">
       <figcaption>Projeções coloridas por percentil de fitness.</figcaption></figure>
   </div>
 
@@ -411,7 +411,7 @@
     <div class="grid-label">Replicar</div>
     <pre>cd brax &amp;&amp; .venv/bin/python extract_behavior.py --seed 42
 cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight_space.py</pre>
-    <figure><img src="figures/exp14_behavior_vs_weight_space.png" alt="exp14">
+    <figure><img src="../../Experiments/figures/exp14_behavior_vs_weight_space.png" alt="exp14">
       <figcaption>Espaço de pesos vs. comportamental, coloridos por fitness.</figcaption></figure>
   </div>
 
@@ -425,7 +425,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <p class="how"><code class="inline">extract_behavior.py</code> estendido para coletar custo de controle e componentes da recompensa.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/15_fitness_aware_descriptor.py</pre>
-    <figure><img src="figures/exp15_fitness_aware_descriptor.png" alt="exp15">
+    <figure><img src="../../Experiments/figures/exp15_fitness_aware_descriptor.png" alt="exp15">
       <figcaption>Quatro espaços de embedding, coloridos por fitness, com corr/dev de k-NN.</figcaption></figure>
   </div>
 
@@ -439,7 +439,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <p class="how">Adicionado <code class="inline">n_components</code> em <code class="inline">compute_aligned_umap_embedding</code>.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/16_3d_embedding.py</pre>
-    <figure><img src="figures/exp16_3d_embedding.png" alt="exp16">
+    <figure><img src="../../Experiments/figures/exp16_3d_embedding.png" alt="exp16">
       <figcaption>UMAP 3D do espaço de pesos e do comportamental, coloridos por fitness.</figcaption></figure>
   </div>
 
@@ -464,7 +464,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <p class="how">Reconstrói cada rede, avalia predições, compara distância de pesos vs. correlação de saídas; desenha fronteiras.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/21_functional_equivalence.py</pre>
-    <figure><img src="figures/exp21_functional_equivalence.png" alt="exp21">
+    <figure><img src="../../Experiments/figures/exp21_functional_equivalence.png" alt="exp21">
       <figcaption><strong>Figura 3.1.</strong> Fronteiras de decisão dos melhores indivíduos de cada algoritmo no make_moons.
       <em>Como ler:</em> cada painel é uma rede; o fundo (azul/vermelho) é a probabilidade prevista, a linha preta é a fronteira.
       As quatro fronteiras são praticamente idênticas (correlação de saídas 0.85–0.98) apesar de os vetores de peso distarem
@@ -482,7 +482,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <p class="how">Rede → grafo ponderado → autovalores ordenados do Laplaciano → PCA. Comparado com o vetor de pesos.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/23_graph_embedding_demo.py</pre>
-    <figure><img src="figures/exp23_graph_embedding_demo.png" alt="exp23">
+    <figure><img src="../../Experiments/figures/exp23_graph_embedding_demo.png" alt="exp23">
       <figcaption><strong>Figura 3.2.</strong> Quatro funções, cada uma com 20 cópias de neurônios permutados (idênticas em função).
       <em>Como ler:</em> cor = função; pontos da mesma cor deveriam coincidir. À esquerda (espaço de pesos) as cores se
       <em>embaralham</em> — permutações ficam tão longe quanto funções diferentes (razão intra/entre = 0.96). À direita
@@ -511,7 +511,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     (permutação ≈ 2e-16; sign-flip ≈ 0.64).</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/29_signed_graph_embedding.py</pre>
-    <figure><img src="figures/exp29_signed_graph_embedding.png" alt="exp29">
+    <figure><img src="../../Experiments/figures/exp29_signed_graph_embedding.png" alt="exp29">
       <figcaption><strong>Figura 3.3.</strong> Distância normalizada ao original para permutação (azul, mesma função) vs.
       sign-flip (vermelho, função diferente). <em>Como ler:</em> o ideal é azul ≈ 0 e vermelho &gt; 0. Só o espectro assinado
       atinge ambos; o |w| zera os dois (perde o sinal).</figcaption></figure>
@@ -534,9 +534,9 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <p class="how">Empilha as populações de todos os algoritmos e ajusta um único <code class="inline">umap.UMAP</code> (euclidean, seed fixa).</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/17_joint_es_comparison.py</pre>
-    <figure><img src="figures/exp17_joint_es_by_algorithm.png" alt="exp17a">
+    <figure><img src="../../Experiments/figures/exp17_joint_es_by_algorithm.png" alt="exp17a">
       <figcaption>Painel único colorido por algoritmo.</figcaption></figure>
-    <figure><img src="figures/exp17_joint_es_algo_vs_fitness.png" alt="exp17b">
+    <figure><img src="../../Experiments/figures/exp17_joint_es_algo_vs_fitness.png" alt="exp17b">
       <figcaption>Por algoritmo | por fitness (★ = melhor global).</figcaption></figure>
   </div>
 
@@ -550,11 +550,11 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <p class="how"><code class="inline">load_runs</code> com subamostragem por run; GIF via <code class="inline">PillowWriter</code>; fragmentação via DBSCAN.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/18_joint_es_extended.py</pre>
-    <figure><img src="figures/exp18a_multiseed_consistency.png" alt="exp18a">
+    <figure><img src="../../Experiments/figures/exp18a_multiseed_consistency.png" alt="exp18a">
       <figcaption>(a) Joint UMAP por seed — assinaturas estáveis.</figcaption></figure>
-    <figure><img src="figures/exp18b_longrun_trajectory.png" alt="exp18b">
+    <figure><img src="../../Experiments/figures/exp18b_longrun_trajectory.png" alt="exp18b">
       <figcaption>(b) Inclui OpenES longo (500 ger), densidade balanceada.</figcaption></figure>
-    <figure><img src="figures/exp18c_joint_3d.gif" alt="exp18c gif">
+    <figure><img src="../../Experiments/figures/exp18c_joint_3d.gif" alt="exp18c gif">
       <figcaption>(c) GIF — rotação 3D (anima no navegador; no PDF aparece o 1º frame).</figcaption></figure>
     <table>
       <tr><th>algoritmo</th><th>clusters</th><th>compactness</th><th>coverage</th><th>best fit</th></tr>
@@ -576,9 +576,9 @@ cd ../supplementary &amp;&amp; pixi run python experiments/14_behavior_vs_weight
     <div class="grid-label">Replicar</div>
     <pre>cd brax &amp;&amp; .venv/bin/python moons_evosax.py --all_algos --seed 42
 cd ../supplementary &amp;&amp; pixi run python experiments/19_joint_es_moons.py</pre>
-    <figure><img src="figures/exp19_moons_algo_vs_fitness.png" alt="exp19">
+    <figure><img src="../../Experiments/figures/exp19_moons_algo_vs_fitness.png" alt="exp19">
       <figcaption>Joint UMAP no make_moons: por algoritmo | por fitness.</figcaption></figure>
-    <figure><img src="figures/exp19_moons_joint_3d.gif" alt="exp19 gif">
+    <figure><img src="../../Experiments/figures/exp19_moons_joint_3d.gif" alt="exp19 gif">
       <figcaption>GIF 3D rotacionando (make_moons).</figcaption></figure>
   </div>
 
@@ -596,11 +596,11 @@ cd ../supplementary &amp;&amp; pixi run python experiments/19_joint_es_moons.py<
     <div class="grid-label">Replicar</div>
     <pre>cd brax &amp;&amp; for t in circles blobs xor; do .venv/bin/python moons_evosax.py --all_algos --seed 42 --task $t; done
 cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatures.py</pre>
-    <figure><img src="figures/exp24_cross_task_umaps.png" alt="exp24 umaps">
+    <figure><img src="../../Experiments/figures/exp24_cross_task_umaps.png" alt="exp24 umaps">
       <figcaption><strong>Figura 4.1.</strong> Ajuste conjunto de UMAP por tarefa (seed 42), cor = algoritmo.
       <em>Como ler:</em> compare a forma de cada cor entre os quatro painéis. O Simple GA (azul) fragmenta em ilhas dispersas
       em <em>todas</em> as tarefas; os ES de distribuição (laranja/verde/vermelho) formam bolhas/fitas compactas. A assinatura é a mesma.</figcaption></figure>
-    <figure><img src="figures/exp24_cross_task_heatmap.png" alt="exp24 heatmap">
+    <figure><img src="../../Experiments/figures/exp24_cross_task_heatmap.png" alt="exp24 heatmap">
       <figcaption><strong>Figura 4.2.</strong> Quantificação das assinaturas (tarefa × algoritmo). <em>Como ler:</em> linhas mais
       escuras = mais fragmentado/espalhado. A linha do Simple GA é uniformemente escura (118–130 clusters; compactness 4–5× a
       mediana) em todas as colunas — confirmação numérica da invariância à tarefa.</figcaption></figure>
@@ -626,7 +626,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     causa, e a diferença make_moons↔CIFAR-10 é consistente com um efeito de <em>dimensionalidade</em>.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/28_controlled_confound.py</pre>
-    <figure><img src="figures/exp28_controlled_confound.png" alt="exp28">
+    <figure><img src="../../Experiments/figures/exp28_controlled_confound.png" alt="exp28">
       <figcaption><strong>Figura 4.3.</strong> Spread σ₁ vs cada fator (um por painel, ±desvio de 3 seeds). <em>Como ler:</em> a
       inclinação ∝ quanto o fator dirige a multimodalidade — input dim (dir.) é a mais íngreme; σ (esq.) é praticamente plana.</figcaption></figure>
   </div>
@@ -641,7 +641,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     <p class="how">Reusa embeddings 2D cacheados; reconstrói o índice de geração por ponto; <code class="inline">FuncAnimation</code>.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/20_temporal_evolution_gif.py</pre>
-    <figure><img src="figures/exp20_halfcheetah_evolution.gif" alt="exp20 hc">
+    <figure><img src="../../Experiments/figures/exp20_halfcheetah_evolution.gif" alt="exp20 hc">
       <figcaption>HalfCheetah — evolução temporal. (<code>exp20_make_moons_evolution.gif</code> para o make_moons.)</figcaption></figure>
   </div>
 
@@ -657,7 +657,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     <p class="how">Métricas no espaço de pesos cru (não no embedding, que distorce distâncias).</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/22_search_dynamics.py</pre>
-    <figure><img src="figures/exp22_search_dynamics.png" alt="exp22">
+    <figure><img src="../../Experiments/figures/exp22_search_dynamics.png" alt="exp22">
       <figcaption>Dispersão, velocidade do centróide e fitness por geração (4 ES × 2 benchmarks).</figcaption></figure>
   </div>
 
@@ -697,9 +697,9 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     com hover/zoom/pan). É o que atende ao pedido de <em>interatividade</em> sem reconstruir nada.</p>
     <div class="grid-label">Replicar</div>
     <pre>cd supplementary &amp;&amp; pixi run app      # ou: pixi run python -m streamlit run app.py</pre>
-    <figure><img src="figures/streamlit_quiver_app.png" alt="streamlit plotly">
+    <figure><img src="../../Experiments/figures/streamlit_quiver_app.png" alt="streamlit plotly">
       <figcaption>Modo Plotly — campo de velocidade (quiver) colorido por geração (esq.) e fitness (dir.), com pontos hoveráveis.</figcaption></figure>
-    <figure><img src="figures/streamlit_quiver_detail.png" alt="streamlit detalhe">
+    <figure><img src="../../Experiments/figures/streamlit_quiver_detail.png" alt="streamlit detalhe">
       <figcaption>Detalhe interativo: densidade de fundo + setas revelam a bacia de convergência dominante e a estrutura multimodal.</figcaption></figure>
   </div>
 
@@ -712,7 +712,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     <div class="grid-label">Replicar</div>
     <pre>cd supplementary &amp;&amp; pixi run panel serve ../brax/interactive_datashader.py --show
 # figura composta:  cd brax &amp;&amp; .venv/bin/python figure_summary.py</pre>
-    <figure><img src="figures/datashader_stress_summary.png" alt="datashader summary">
+    <figure><img src="../../Experiments/figures/datashader_stress_summary.png" alt="datashader summary">
       <figcaption>Resumo composto (datashader): curvas de fitness + campos de velocidade por seed, em escala.</figcaption></figure>
   </div>
 
@@ -724,7 +724,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     leitura alternativa do fluxo evolutivo, complementar ao campo de velocidade.</p>
     <div class="grid-label">Replicar</div>
     <pre>supplementary/visualizations/trajectory_bundling.py</pre>
-    <figure><img src="figures/concept_best_trajectory.png" alt="best trajectory" style="max-width:600px">
+    <figure><img src="../../Experiments/figures/concept_best_trajectory.png" alt="best trajectory" style="max-width:600px">
       <figcaption>Trajetórias agrupadas com destaque da melhor — fluxo da população rumo ao atrator.</figcaption></figure>
   </div>
 
@@ -748,10 +748,10 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     pesos cru; alerta = colapso de diversidade enquanto a fitness ainda é baixa.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/26_premature_convergence.py</pre>
-    <figure><img src="figures/exp26_premature_convergence.png" alt="exp26 curves">
+    <figure><img src="../../Experiments/figures/exp26_premature_convergence.png" alt="exp26 curves">
       <figcaption><strong>Figura 6.1.</strong> Fitness, diversidade e velocidade por geração para cada σ. <em>Como ler:</em> o
       σ=0.02 (roxo) tem diversidade e velocidade próximas de zero desde o início (população congelada) e a pior fitness.</figcaption></figure>
-    <figure><img src="figures/exp26_premature_diagnostic.png" alt="exp26 diagnostic">
+    <figure><img src="../../Experiments/figures/exp26_premature_diagnostic.png" alt="exp26 diagnostic">
       <figcaption><strong>Figura 6.2.</strong> Diversidade inicial (gen 1–5) × fitness final, um ponto por (σ, seed).
       <em>Como ler:</em> o regime é legível na geração 5 — congelado (esquerda-baixo) e caótico (direita-baixo) são ambos ruins;
       o ótimo (σ=0.11) fica no topo. Sinal acionável de convergência prematura.</figcaption></figure>
@@ -772,7 +772,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     (liga ao Exp 26). A geometria, portanto, serve para <em>balancear</em> exploração e explotação, não só concentrar.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/27_offspring_allocation.py</pre>
-    <figure><img src="figures/exp27_offspring_allocation.png" alt="exp27">
+    <figure><img src="../../Experiments/figures/exp27_offspring_allocation.png" alt="exp27">
       <figcaption><strong>Figura 6.3.</strong> Fitness e diversidade por geração (5 seeds). <em>Como ler:</em> a fitness-weighted
       (vermelho) tem a melhor fitness e a menor diversidade; a diversity-weighted (verde) mantém mais diversidade. A geometria
       permite escolher o ponto do trade-off.</figcaption></figure>
@@ -805,7 +805,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     <p class="what">Justifica a escolha do UMAP contra baselines (PCA, t-SNE) em preservação de estrutura temporal e separação de atratores.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/02_projection_baselines.py</pre>
-    <figure><img src="figures/exp2_projection_baselines.png" alt="exp2">
+    <figure><img src="../../Experiments/figures/exp2_projection_baselines.png" alt="exp2">
       <figcaption>UMAP vs. baselines na mesma evolução.</figcaption></figure>
   </div>
 
@@ -815,7 +815,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     <p class="what">Valida o método em dados sintéticos com estrutura conhecida (1 e 4 gaussianas): a contagem de atratores recupera o ground truth.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/04_synthetic_unimodal_test.py</pre>
-    <figure><img src="figures/exp4_synthetic_validation.png" alt="exp4">
+    <figure><img src="../../Experiments/figures/exp4_synthetic_validation.png" alt="exp4">
       <figcaption>Validação em estruturas sintéticas conhecidas.</figcaption></figure>
   </div>
 
@@ -825,7 +825,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     <p class="what">Projeção de uma única geração (sem componente temporal) em grids de hiperparâmetros — isola o efeito espacial do UMAP do alinhamento.</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/06_single_gen_umap.py</pre>
-    <figure><img src="figures/exp6_param_grid_gen79.png" alt="exp6">
+    <figure><img src="../../Experiments/figures/exp6_param_grid_gen79.png" alt="exp6">
       <figcaption>Grid de hiperparâmetros na geração única (gen 79).</figcaption></figure>
   </div>
 
@@ -836,7 +836,7 @@ cd ../supplementary &amp;&amp; pixi run python experiments/24_cross_task_signatu
     renderiza por histograma 2D (O(grid²), independente de n).</p>
     <div class="grid-label">Replicar</div>
     <pre>pixi run python experiments/07_large_scale_umap.py</pre>
-    <figure><img src="figures/exp7_large_umap_nn15_md0.1.png" alt="exp7">
+    <figure><img src="../../Experiments/figures/exp7_large_umap_nn15_md0.1.png" alt="exp7">
       <figcaption>Densidade de 1M+ pontos projetados.</figcaption></figure>
   </div>
 

@@ -1,62 +1,70 @@
 # Investigação estendida (prévia da dissertação)
 
-Guia rápido dos experimentos **exp5–25**, que estendem o pacote do paper (exp1–4, ver
-[`README.md`](README.md)). A narrativa completa, com figuras e explicações, está em
-**[`experiment_report.html`](experiment_report.html)** — abra no navegador; o botão
-**⬇ Baixar PDF** imprime para PDF.
+Guia rápido dos experimentos **exp5–30**, que estendem o pacote do paper (exp1–4, ver
+[`README.md`](../README.md)). A narrativa completa, com figuras e explicações, está em
+**[`relatorios/experiment_report.html`](relatorios/experiment_report.html)** — abra no
+navegador; o botão **⬇ Baixar PDF** imprime para PDF.
 
 > **Pergunta → mistério → causa → recompensa.** Qual métrica usar? O espaço de pesos
 > organiza a fitness? Por que não? (simetrias) Como a geometria revela o algoritmo de busca?
 
 ---
 
-## Dois ambientes
+## Dois ambientes (um único projeto pixi, da raiz do repo)
 
-| ambiente | onde | para quê |
-|---|---|---|
-| **pixi** | `supplementary/` | UMAP, análises, figuras (`pixi install`) |
-| **JAX/Brax venv** | `brax/.venv` | gerar runs de ES (evosax + brax) → `runs/` |
+| ambiente | flag | para quê | numpy |
+|---|---|---|---|
+| **viz** (default) | `-e viz` | UMAP, análises, figuras, app | 1.26 |
+| **evo** | `-e evo` | gerar runs de ES (jax + brax + evosax) → `Experiments/runs/` | 2.x |
 
-## Rodar (ambiente pixi)
+`pixi install` resolve os dois. A lib `Experiments/src` é pacote editável nos dois envs.
+
+## Rodar análises (ambiente viz)
 
 ```bash
-cd supplementary
 # fundação
-pixi run python experiments/05_umap_param_search.py
-pixi run python experiments/11_evolution_summary.py
+pixi run -e viz python Experiments/scripts/05_umap_param_search.py
+pixi run -e viz python Experiments/scripts/11_evolution_summary.py
 # métricas
-pixi run python experiments/08_metric_comparison.py --force-rerun
-pixi run python experiments/09_metric_validation.py
-pixi run python experiments/12_metric_comparison_working.py
-pixi run python experiments/13_metric_comparison_fitness.py
+pixi run -e viz python Experiments/scripts/08_metric_comparison.py --force-rerun
+pixi run -e viz python Experiments/scripts/09_metric_validation.py
+pixi run -e viz python Experiments/scripts/12_metric_comparison_working.py
+pixi run -e viz python Experiments/scripts/13_metric_comparison_fitness.py
 # espaço de pesos vs comportamental
-pixi run python experiments/14_behavior_vs_weight_space.py
-pixi run python experiments/15_fitness_aware_descriptor.py
-pixi run python experiments/16_3d_embedding.py
+pixi run -e viz python Experiments/scripts/14_behavior_vs_weight_space.py
+pixi run -e viz python Experiments/scripts/15_fitness_aware_descriptor.py
+pixi run -e viz python Experiments/scripts/16_3d_embedding.py
 # simetrias (clímax)
-pixi run python experiments/21_functional_equivalence.py
-pixi run python experiments/23_graph_embedding_demo.py
+pixi run -e viz python Experiments/scripts/21_functional_equivalence.py
+pixi run -e viz python Experiments/scripts/23_graph_embedding_demo.py
+pixi run -e viz python Experiments/scripts/29_signed_graph_embedding.py   # corrige a cegueira ao sinal do exp23
 # geometria da busca
-pixi run python experiments/17_joint_es_comparison.py
-pixi run python experiments/18_joint_es_extended.py
-pixi run python experiments/19_joint_es_moons.py
-pixi run python experiments/20_temporal_evolution_gif.py
-pixi run python experiments/22_search_dynamics.py
-pixi run python experiments/24_cross_task_signatures.py
+pixi run -e viz python Experiments/scripts/17_joint_es_comparison.py
+pixi run -e viz python Experiments/scripts/18_joint_es_extended.py
+pixi run -e viz python Experiments/scripts/19_joint_es_moons.py
+pixi run -e viz python Experiments/scripts/20_temporal_evolution_gif.py
+pixi run -e viz python Experiments/scripts/22_search_dynamics.py
+pixi run -e viz python Experiments/scripts/24_cross_task_signatures.py
+pixi run -e viz python Experiments/scripts/30_control_task_signatures.py  # estende exp24 p/ CartPole + HalfCheetah
+# aplicações propostas + ablação de confound
+pixi run -e viz python Experiments/scripts/26_premature_convergence.py
+pixi run -e viz python Experiments/scripts/27_offspring_allocation.py
+pixi run -e viz python Experiments/scripts/28_controlled_confound.py
 ```
 
-## Gerar os runs de neuroevolução (ambiente brax)
+## Gerar os runs de neuroevolução (ambiente evo)
 
 ```bash
-cd brax
-.venv/bin/python es_sanity.py                                  # valida os ES (ótimo conhecido = 0)
-.venv/bin/python neuroevolve_evosax.py --algo cma_es --seed 42 # HalfCheetah, 1 ES
-.venv/bin/python moons_evosax.py --all_algos --seed 42 --task moons   # classificação 2D, 4 ES
-.venv/bin/python extract_behavior.py --seed 42                 # descritores comportamentais
+pixi run -e evo es-sanity                                                            # valida os ES (ótimo = 0)
+pixi run -e evo python Experiments/src/neuroevolve_brax.py --seed 42                 # HalfCheetah (GA)
+pixi run -e evo python Experiments/scripts/neuroevolve_evosax.py --algo cma_es --seed 42
+pixi run -e evo python Experiments/scripts/moons_evosax.py --all_algos --seed 42 --task moons
+pixi run -e evo python Experiments/scripts/extract_behavior.py --seed 42
 ```
 
-Tarefas de classificação disponíveis em `--task`: `moons`, `circles`, `blobs`, `xor`
-(datasets pré-gerados com sklearn em `runs/{task}_data_seed*.npz`).
+Atalhos no env evo: `es-sanity`, `evolve-halfcheetah`, `evolve`, `moons`, `cartpole`,
+`extract-behavior`. Tarefas de classificação em `--task`: `moons`, `circles`, `blobs`, `xor`
+(datasets pré-gerados em `Experiments/runs/{task}_data_seed*.npz`).
 
 > ⚠️ **evosax minimiza** a fitness. Para maximizar uma recompensa `F`, passe `tell(-F)`.
 > O `es_sanity.py` foi o que revelou um erro de sinal que invertia a otimização — rode-o
@@ -77,8 +85,9 @@ Fragmentation in UMAP (clusters) per task:
 | 0. Setup | 1, 3, 5, 25 (sanity), 11 |
 | 1. Métrica | 8, 9, 10, 12, 13 |
 | 2. Mistério (fitness) | 14, 15, 16 |
-| 3. Causa (simetrias) | 21, 23 |
-| 4. Geometria da busca | 17, 18, 19, 24, 20, 22 |
+| 3. Causa (simetrias) | 21, 23, 29 |
+| 4. Geometria da busca | 17, 18, 19, 24, 20, 22, 30 |
+| 5. Aplicações + confound | 26, 27, 28 |
 | Apêndice | 2, 4, 6, 7 |
 
 ## Tempo aproximado
