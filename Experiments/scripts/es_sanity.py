@@ -16,6 +16,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
+from paths import RUNS_DIR, FIGURES_DIR, RESULTS_DIR
 
 DIM = 16
 POP = 50
@@ -95,11 +96,12 @@ def main():
         ax.legend(fontsize=8)
     fig.suptitle("ES sanity-check on functions with known optimum (mean ± std, 3 seeds)", fontsize=12, y=1.02)
     fig.tight_layout()
-    out = Path("runs"); out.mkdir(exist_ok=True)
-    figp = Path("../supplementary/figures/exp25_es_sanity.png")
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    figp = FIGURES_DIR / "exp25_es_sanity.png"
     fig.savefig(figp, dpi=200, bbox_inches="tight", facecolor="white")
     import csv
-    with open("../supplementary/results/exp25_es_sanity.csv", "w", newline="") as f:
+    with open(RESULTS_DIR / "exp25_es_sanity.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=rows[0].keys()); w.writeheader(); w.writerows(rows)
     print(f"Saved {figp}")
 

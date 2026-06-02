@@ -18,12 +18,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from utils import compute_aligned_umap_embedding
-from experiments.shared import (
+from shared import (
     set_science_style,
     CACHE_DIR,
     FIGURES_DIR,
@@ -39,7 +36,7 @@ METRICS = ["euclidean", "mahalanobis", "chebyshev", "cosine", "correlation"]
 SEED = 42
 LAMBDA_ALIGN = 0.8
 DISPLAY = {"make_moons": "Make Moons (low-dim)", "halfcheetah": "HalfCheetah (390-dim)"}
-BRAX_RUNS = ROOT.parent / "brax" / "runs"
+from paths import RUNS_DIR as BRAX_RUNS
 
 
 def load_weights(benchmark: str, seed: int) -> list[np.ndarray] | None:

@@ -23,11 +23,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from experiments.shared import FIGURES_DIR, RESULTS_DIR, ensure_dirs, set_science_style, save_results_csv
+from shared import FIGURES_DIR, RESULTS_DIR, ensure_dirs, set_science_style, save_results_csv
 
 HIDDEN = 16
 N_BASE = 6        # distinct base networks

@@ -15,16 +15,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from utils import compute_aligned_umap_embedding
-from experiments.shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, set_science_style
+from shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, set_science_style
 
 SEED = 42
 LAMBDA_ALIGN = 0.8
-BRAX_RUNS = ROOT.parent / "brax" / "runs"
+from paths import RUNS_DIR as BRAX_RUNS
 
 
 def zscore_by_gen(arr_by_gen):

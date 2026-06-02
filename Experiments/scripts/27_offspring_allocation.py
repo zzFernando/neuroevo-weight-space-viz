@@ -19,13 +19,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from benchmarks import DEFAULTS
 from benchmarks.moons import NeuroEvoMoons
-from experiments.shared import FIGURES_DIR, RESULTS_DIR, ensure_dirs, set_science_style, save_results_csv
+from shared import FIGURES_DIR, RESULTS_DIR, ensure_dirs, set_science_style, save_results_csv
 
 STRATEGIES = ["uniform", "fitness_weighted", "diversity_weighted"]
 LABELS = {"uniform": "Uniform (baseline)", "fitness_weighted": "Fitness-weighted",

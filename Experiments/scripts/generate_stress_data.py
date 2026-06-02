@@ -50,7 +50,7 @@ ELITE_FRAC   = 0.15
 # Attractor fitness peaks: global opt (1.0) + 5 local optima
 ATTRACTOR_FITNESS = np.array([1.0, 0.82, 0.75, 0.68, 0.60, 0.54], dtype=np.float32)
 
-RUNS_DIR = Path(__file__).parent / "runs"
+from paths import RUNS_DIR
 
 
 # ── Landscape ─────────────────────────────────────────────────────────────────

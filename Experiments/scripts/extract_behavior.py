@@ -15,6 +15,7 @@ import numpy as np
 import jax, jax.numpy as jnp
 from brax import envs
 
+from paths import RUNS_DIR
 from neuroevolve_brax import PolicySpec
 
 
@@ -49,7 +50,7 @@ def main():
     ap.add_argument("--algo", default="simple_ga")
     args = ap.parse_args()
 
-    run = f"runs/{args.algo}_seed{args.seed}.npz"
+    run = RUNS_DIR / f"{args.algo}_seed{args.seed}.npz"
     data = np.load(run, allow_pickle=True)
     pops = data["populations"]            # (gens, pop, n_params)
     fits = data["fitnesses"]              # (gens, pop)
@@ -78,7 +79,7 @@ def main():
             print(f"  gen {g:3d}  mean|xvel|={np.abs(behavior[g]).mean():6.3f}  "
                   f"final_x={final_x[g].mean():7.3f}  ctrl={ctrl_cost[g].mean():6.3f}")
 
-    out = f"runs/{args.algo}_seed{args.seed}_behavior.npz"
+    out = RUNS_DIR / f"{args.algo}_seed{args.seed}_behavior.npz"
     np.savez_compressed(out, behavior=behavior, final_x=final_x, ctrl_cost=ctrl_cost,
                         reward_run=reward_run, reward_ctrl=reward_ctrl, fitnesses=fits)
     print(f"saved -> {out}  behavior{behavior.shape}")

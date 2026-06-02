@@ -30,12 +30,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from utils import compute_aligned_umap_embedding, EvolutionResult
-from experiments.shared import (
+from paths import RUNS_DIR
+from shared import (
     CACHE_DIR,
     FIGURES_DIR,
     RESULTS_DIR,
@@ -323,7 +321,7 @@ def main(runs_dir: Path, algo: str = "halfcheetah",
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Apply paper analysis pipeline to brax HalfCheetah runs")
     p.add_argument("--runs_dir", type=Path,
-                   default=Path(__file__).resolve().parents[2] / "brax" / "runs")
+                   default=RUNS_DIR)
     p.add_argument("--algo",     default="halfcheetah",
                    help="Algorithm name: halfcheetah (brax GA) or evosax algo name "
                         f"({', '.join(EVOSAX_ALGOS)})")

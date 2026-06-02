@@ -12,13 +12,10 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from benchmarks import DEFAULTS
 from utils import compute_aligned_umap_embedding, run_evolution_benchmark
-from experiments.shared import (
+from shared import (
     CACHE_DIR,
     FIGURES_DIR,
     RESULTS_DIR,

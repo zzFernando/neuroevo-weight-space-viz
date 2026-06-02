@@ -15,12 +15,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from utils import compute_aligned_umap_embedding
-from experiments.shared import (
+from shared import (
     set_science_style,
     CACHE_DIR, FIGURES_DIR, ensure_dirs,
     count_attractors_dbscan, plot_fitness_panel, temporal_coherence,
@@ -28,7 +25,7 @@ from experiments.shared import (
 
 SEED = 42
 LAMBDA_ALIGN = 0.8
-BRAX_RUNS = ROOT.parent / "brax" / "runs"
+from paths import RUNS_DIR as BRAX_RUNS
 
 
 def load_behavior():

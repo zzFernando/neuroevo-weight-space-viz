@@ -1,0 +1,64 @@
+[workspace]
+name = "neuroevo-weight-space-viz"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64", "win-64"]
+
+# ── Two environments from one project ────────────────────────────────────────
+#   viz  (default): UMAP / sklearn / datashader analysis + figures + Streamlit app.
+#                   Pinned to numpy 1.26 for the umap-learn/numba reproducibility stack.
+#   evo           : JAX + brax + evosax neuroevolution run generators (numpy 2.x).
+# The two numpy majors are incompatible, so they stay in separate solve groups.
+# Both put src/ on PYTHONPATH so `from benchmarks/utils/shared/paths import ...` works.
+[environments]
+default = { features = ["viz"], solve-group = "viz" }
+viz = { features = ["viz"], solve-group = "viz" }
+evo = { features = ["evo"], solve-group = "evo" }
+
+# ── viz feature ──────────────────────────────────────────────────────────────
+[feature.viz.dependencies]
+python = "3.11.*"
+matplotlib = "3.8.4.*"
+numpy = "1.26.4.*"
+plotly = "5.24.1.*"
+scikit-learn = "1.4.2.*"
+streamlit = "1.50.0.*"
+umap-learn = "0.5.7.*"
+numba = ">=0.60,<1"
+tectonic = ">=0.16.9,<0.17"
+datashader = ">=0.16"
+colorcet = ">=3.0"
+pandas = ">=2.0"
+scipy = ">=1.12"
+panel = ">=1.4"
+holoviews = ">=1.19"
+bokeh = ">=3.4"
+
+[feature.viz.pypi-dependencies]
+scienceplots = ">=2.1"
+neuroevo = { path = ".", editable = true }
+
+[feature.viz.tasks]
+app = "streamlit run Experiments/apps/app.py"
+viz-brax = "panel serve Experiments/apps/interactive_datashader.py --show --autoreload --port 5007"
+analysis = "python Experiments/scripts/brax_adapter.py"
+exp1 = "python Experiments/scripts/01_multi_seed_robustness.py"
+run-all = "python Experiments/scripts/run_all.py"
+
+# ── evo feature ──────────────────────────────────────────────────────────────
+[feature.evo.dependencies]
+python = "3.11.*"
+
+[feature.evo.pypi-dependencies]
+jax = "==0.10.1"
+jaxlib = "==0.10.1"
+brax = "==0.14.2"
+evosax = "==0.2.0"
+neuroevo = { path = ".", editable = true }
+
+[feature.evo.tasks]
+es-sanity = "python Experiments/scripts/es_sanity.py"
+evolve-halfcheetah = "python Experiments/src/neuroevolve_brax.py --seed 42"
+evolve = "python Experiments/scripts/neuroevolve_evosax.py --all_algos --seed 42"
+moons = "python Experiments/scripts/moons_evosax.py --all_algos --seed 42"
+cartpole = "python Experiments/scripts/cartpole_evosax.py --all_algos --seed 42"
+extract-behavior = "python Experiments/scripts/extract_behavior.py --seed 42"

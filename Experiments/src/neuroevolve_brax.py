@@ -22,6 +22,8 @@ import numpy as np
 import jax, jax.numpy as jnp
 from brax import envs
 
+from paths import RUNS_DIR
+
 
 # ---------------------------------------------------------------------------
 # Policy: small MLP, flattened parameter vector
@@ -132,7 +134,7 @@ def main():
     p.add_argument('--sigma',       type=float, default=0.05)
     p.add_argument('--elite_frac',  type=float, default=0.2)
     p.add_argument('--seed',        type=int,   default=42)
-    p.add_argument('--out',         default='runs/halfcheetah_seed42.npz')
+    p.add_argument('--out',         default=str(RUNS_DIR / 'halfcheetah_seed42.npz'))
     args = p.parse_args()
 
     os.makedirs(os.path.dirname(args.out) or '.', exist_ok=True)

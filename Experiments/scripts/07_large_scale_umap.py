@@ -20,11 +20,8 @@ import matplotlib.colors as mcolors
 import numpy as np
 import umap
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from experiments.shared import CACHE_DIR, FIGURES_DIR, ensure_dirs
+from shared import CACHE_DIR, FIGURES_DIR, ensure_dirs
 
 SEED       = 42
 N_TOTAL    = 1_000_000

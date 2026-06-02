@@ -22,13 +22,10 @@ import numpy as np
 from sklearn.datasets import make_moons
 from sklearn.preprocessing import StandardScaler
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from benchmarks.base import NeuroEvoBase
 from utils import compute_aligned_umap_embedding
-from experiments.shared import (
+from shared import (
     CACHE_DIR, FIGURES_DIR, RESULTS_DIR, ensure_dirs, set_science_style,
     count_attractors_dbscan, save_results_csv,
 )

@@ -18,11 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import umap
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from experiments.shared import (
+from shared import (
     CACHE_DIR, FIGURES_DIR, RESULTS_DIR, ensure_dirs, set_science_style,
     count_attractors_dbscan, save_results_csv,
 )
@@ -33,7 +30,7 @@ ALGO_LABELS = {"simple_ga": "Simple GA", "open_es": "OpenES",
 ALGO_COLORS = {"simple_ga": "#1f77b4", "open_es": "#ff7f0e",
                "cma_es": "#2ca02c", "sep_cma_es": "#d62728"}
 SEEDS = [42, 7, 123]
-BRAX_RUNS = ROOT.parent / "brax" / "runs"
+from paths import RUNS_DIR as BRAX_RUNS
 
 
 def load_runs(seed: int):

@@ -25,17 +25,13 @@ from holoviews.operation.datashader import dynspread, rasterize
 from scipy.ndimage import uniform_filter
 
 # Make supplementary utilities importable when serving from supplementary/
-_SUPP = Path(__file__).resolve().parent.parent / "supplementary"
-if str(_SUPP) not in sys.path:
-    sys.path.insert(0, str(_SUPP))
-
-from visualizations.vector_field import _compute_velocity_grid  # noqa: E402
+from visualizations.vector_field import _compute_velocity_grid
+from paths import RUNS_DIR
 
 matplotlib.use("agg")
 hv.extension("bokeh")
 pn.extension(sizing_mode="stretch_width")
 
-RUNS_DIR = Path(__file__).parent / "runs"
 N_BINS_VF = 22
 PLOT_W, PLOT_H = 720, 620
 

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuroevo"
+version = "0.1.0"
+description = "Shared library for the NeuroEvo weight-space visualization project (NeurIPS 2026)."
+requires-python = ">=3.11"
+# Runtime dependencies are managed by pixi (see pixi.toml), not here — this package
+# is installed editable purely to expose src/ on the import path without sys.path hacks.
+
+[tool.setuptools]
+package-dir = { "" = "Experiments/src" }
+# Loose top-level modules under src/
+py-modules = ["paths", "shared", "utils", "neuroevolve_brax"]
+
+[tool.setuptools.packages.find]
+# Sub-packages under src/ (dirs with __init__.py)
+where = ["Experiments/src"]

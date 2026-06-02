@@ -28,6 +28,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
+from paths import RUNS_DIR
 from brax import envs
 
 # ── evosax 0.2.x strategy registry ───────────────────────────────────────────
@@ -167,7 +168,7 @@ def main() -> None:
     p.add_argument("--gens",        type=int,  default=80)
     p.add_argument("--episode_len", type=int,  default=300)
     p.add_argument("--seed",        type=int,  default=42)
-    p.add_argument("--out_dir",     type=Path, default=Path("runs"))
+    p.add_argument("--out_dir",     type=Path, default=RUNS_DIR)
     args = p.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)

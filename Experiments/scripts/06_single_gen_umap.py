@@ -9,11 +9,8 @@ import numpy as np
 import umap
 from tqdm import tqdm
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from experiments.shared import FIGURES_DIR, ensure_dirs
+from shared import FIGURES_DIR, ensure_dirs
 
 SEED = 42
 N_DIM = 50

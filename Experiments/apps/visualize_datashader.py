@@ -46,6 +46,7 @@ import pandas as pd
 from scipy.ndimage import uniform_filter
 from sklearn.decomposition import PCA
 import umap
+from paths import FIGURES_DIR
 
 matplotlib.rcParams.update({"figure.dpi": 150, "font.size": 10})
 
@@ -461,7 +462,7 @@ def main() -> None:
                         help="Alignment strength (default 0.8)")
     parser.add_argument("--width",   type=int, default=1600)
     parser.add_argument("--height",  type=int, default=1600)
-    parser.add_argument("--out_dir", type=Path, default=Path("figures/datashader"))
+    parser.add_argument("--out_dir", type=Path, default=FIGURES_DIR / "datashader")
     parser.add_argument("--multi_seed_grid", action="store_true",
                         help="Produce a single composite figure for all inputs")
     parser.add_argument("--subsample", type=int, default=None,

@@ -8,6 +8,7 @@ import argparse, os, glob
 import numpy as np
 import matplotlib.pyplot as plt
 import umap
+from paths import RUNS_DIR, FIGURES_DIR
 
 
 def joint_umap(populations, n_neighbors=15, min_dist=0.1, seed=0):
@@ -46,8 +47,8 @@ def vf(Z, n_bins=22):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--runs_glob', default='runs/halfcheetah_seed*.npz')
-    p.add_argument('--out',       default='figures/halfcheetah_summary.png')
+    p.add_argument('--runs_glob', default=str(RUNS_DIR / 'halfcheetah_seed*.npz'))
+    p.add_argument('--out',       default=str(FIGURES_DIR / 'halfcheetah_summary.png'))
     args = p.parse_args()
 
     paths = sorted(glob.glob(args.runs_glob))

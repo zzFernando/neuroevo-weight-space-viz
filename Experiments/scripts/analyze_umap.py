@@ -15,6 +15,7 @@ import argparse, os
 import numpy as np
 import matplotlib.pyplot as plt
 import umap
+from paths import FIGURES_DIR
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +152,7 @@ def main():
     Z_aligned = align_to_reference(Z, lam=args.lambda_align)
     x_e, y_e, U, V, _ = velocity_field(Z_aligned, n_bins=22)
 
-    out = args.out or args.npz.replace('.npz', '.png')
+    out = args.out or str(FIGURES_DIR / (os.path.basename(args.npz)[:-4] + '.png'))
     os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
     plot_panel(Z_aligned, fits, x_e, y_e, U, V, out,
                title=f'{meta.get("env", "env")} — seed {meta.get("seed", "?")} '

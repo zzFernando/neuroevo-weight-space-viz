@@ -17,18 +17,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from experiments.shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, set_science_style
+from shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, set_science_style
 
 ALGOS = ["simple_ga", "open_es", "cma_es", "sep_cma_es"]
 ALGO_LABELS = {"simple_ga": "Simple GA", "open_es": "OpenES",
                "cma_es": "CMA-ES", "sep_cma_es": "sep-CMA-ES"}
 ALGO_COLORS = {"simple_ga": "#1f77b4", "open_es": "#ff7f0e",
                "cma_es": "#2ca02c", "sep_cma_es": "#d62728"}
-BRAX_RUNS = ROOT.parent / "brax" / "runs"
+from paths import RUNS_DIR as BRAX_RUNS
 
 # benchmark -> (run filename prefix, cached 2-D embedding npz)
 BENCHMARKS = {

@@ -18,11 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import umap
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
-from experiments.shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, set_science_style
+from shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, set_science_style
 
 ALGOS = ["simple_ga", "open_es", "cma_es", "sep_cma_es"]
 ALGO_LABELS = {"simple_ga": "Simple GA", "open_es": "OpenES", "cma_es": "CMA-ES",
@@ -30,7 +27,7 @@ ALGO_LABELS = {"simple_ga": "Simple GA", "open_es": "OpenES", "cma_es": "CMA-ES"
 ALGO_COLORS = {"simple_ga": "#1f77b4", "open_es": "#ff7f0e", "cma_es": "#2ca02c",
                "sep_cma_es": "#d62728", "open_es_p128g500": "#9467bd"}
 SEEDS = [42, 7, 123]
-BRAX_RUNS = ROOT.parent / "brax" / "runs"
+from paths import RUNS_DIR as BRAX_RUNS
 
 
 def load_runs(specs: list[tuple[str, int]], max_per_run: int | None = None):
@@ -189,7 +186,7 @@ def gif_3d(seed: int = 42, n_frames: int = 60):
 
 def quantify_signatures(seed: int = 42):
     """Quantitative fingerprint of each algorithm's search geometry (2-D joint emb)."""
-    from experiments.shared import count_attractors_dbscan, save_results_csv, RESULTS_DIR
+    from shared import count_attractors_dbscan, save_results_csv, RESULTS_DIR
 
     W, names, _, fit = load_runs([(a, seed) for a in ALGOS])
     emb = fit_umap(W, f"multiseed_s{seed}", 2, seed)  # reuse seed-42 2-D fit

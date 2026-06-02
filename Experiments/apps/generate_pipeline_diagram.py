@@ -2,9 +2,7 @@
 from __future__ import annotations
 import sys
 from pathlib import Path
-ROOT = Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from paths import PAPER_FIGURES
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -95,9 +93,10 @@ ax.legend(fontsize=7, loc="upper right", framealpha=0.8)
 
 fig.tight_layout()
 
-out = ROOT / "neurips_paper" / "figures" / "pipeline_diagram.pdf"
+PAPER_FIGURES.mkdir(parents=True, exist_ok=True)
+out = PAPER_FIGURES / "pipeline_diagram.pdf"
 fig.savefig(out, bbox_inches="tight", facecolor="white")
-out_png = ROOT / "neurips_paper" / "figures" / "pipeline_diagram.png"
+out_png = PAPER_FIGURES / "pipeline_diagram.png"
 fig.savefig(out_png, dpi=200, bbox_inches="tight", facecolor="white")
 plt.close(fig)
 print(f"Saved {out}")

@@ -18,18 +18,15 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from benchmarks.moons import NeuroEvoMoons
 from benchmarks import DEFAULTS
-from experiments.shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, plot_fitness_panel, set_science_style
+from shared import CACHE_DIR, FIGURES_DIR, ensure_dirs, plot_fitness_panel, set_science_style
 
 METRICS = ["euclidean", "mahalanobis", "chebyshev", "cosine", "correlation"]
 SEED = 42
 DISPLAY = {"make_moons": "Make Moons (low-dim)", "halfcheetah": "HalfCheetah (390-dim)"}
-BRAX_RUNS = ROOT.parent / "brax" / "runs"
+from paths import RUNS_DIR as BRAX_RUNS
 
 
 def make_moons_fitness(seed: int) -> np.ndarray | None:

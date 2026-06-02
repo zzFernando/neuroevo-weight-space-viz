@@ -20,6 +20,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
+from paths import RUNS_DIR
 
 HIDDEN = 16
 N_PARAMS = 2 * HIDDEN + HIDDEN * 1  # 48
@@ -36,7 +37,7 @@ def _load_strategies():
 def make_data(seed: int, task: str = "moons"):
     # Datasets are pre-generated with sklearn in the supplementary env (sklearn is not
     # installed here): runs/{task}_data_seed{seed}.npz with keys X, y. All are 2-D binary.
-    d = np.load(Path("runs") / f"{task}_data_seed{seed}.npz")
+    d = np.load(RUNS_DIR / f"{task}_data_seed{seed}.npz")
     return jnp.asarray(d["X"], jnp.float32), jnp.asarray(d["y"], jnp.float32)
 
 
@@ -89,7 +90,7 @@ def main():
     ap.add_argument("--gens", type=int, default=80)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--task", default="moons", help="moons|circles|blobs|xor (2-D binary)")
-    ap.add_argument("--out_dir", type=Path, default=Path("runs"))
+    ap.add_argument("--out_dir", type=Path, default=RUNS_DIR)
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 

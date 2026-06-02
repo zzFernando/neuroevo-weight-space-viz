@@ -17,6 +17,7 @@ from pathlib import Path
 
 import jax, jax.numpy as jnp
 import numpy as np
+from paths import RUNS_DIR
 
 HIDDEN = 16
 N_PARAMS = 4 * HIDDEN + HIDDEN  # 80
@@ -97,7 +98,7 @@ def main():
     ap.add_argument("--pop", type=int, default=50)
     ap.add_argument("--gens", type=int, default=80)
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--out_dir", type=Path, default=Path("runs"))
+    ap.add_argument("--out_dir", type=Path, default=RUNS_DIR)
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 

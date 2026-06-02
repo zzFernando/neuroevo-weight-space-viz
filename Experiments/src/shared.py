@@ -14,10 +14,7 @@ from sklearn.neighbors import NearestNeighbors
 
 from visualizations.vector_field import _compute_velocity_grid
 
-_ROOT = Path(__file__).resolve().parent.parent
-RESULTS_DIR = _ROOT / "results"
-FIGURES_DIR = _ROOT / "figures"
-CACHE_DIR = _ROOT / "cache"
+from paths import REPO_ROOT as _ROOT, RESULTS_DIR, FIGURES_DIR, CACHE_DIR
 
 
 def set_science_style() -> None:
