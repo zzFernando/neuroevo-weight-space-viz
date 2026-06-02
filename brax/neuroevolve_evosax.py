@@ -136,8 +136,10 @@ def run_evosax(
 
         pop, state   = strategy.ask(rng_ask, state, params)
         keys         = jax.random.split(rng_eval, pop_size)
-        fitness      = np.asarray(rollout_fn(keys, pop))    # (pop,)
-        state, _     = strategy.tell(rng_tell, pop, jnp.array(fitness), state, params)
+        fitness      = np.asarray(rollout_fn(keys, pop))    # (pop,) reward, higher = better
+        # evosax MINIMIZES the value passed to tell; we want to MAXIMIZE reward,
+        # so feed it -fitness. (history keeps the true reward, higher = better.)
+        state, _     = strategy.tell(rng_tell, pop, jnp.array(-fitness), state, params)
 
         history_pop[g] = np.asarray(pop)
         history_fit[g] = fitness

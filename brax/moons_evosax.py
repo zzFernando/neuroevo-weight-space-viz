@@ -33,26 +33,26 @@ def _load_strategies():
             "cma_es": CMA_ES, "sep_cma_es": Sep_CMA_ES}
 
 
-def make_data(seed: int):
-    # Dataset is pre-generated with sklearn in the supplementary env (sklearn is not
-    # installed here) by: runs/moons_data_seed{seed}.npz with keys X, y.
-    d = np.load(Path("runs") / f"moons_data_seed{seed}.npz")
+def make_data(seed: int, task: str = "moons"):
+    # Datasets are pre-generated with sklearn in the supplementary env (sklearn is not
+    # installed here): runs/{task}_data_seed{seed}.npz with keys X, y. All are 2-D binary.
+    d = np.load(Path("runs") / f"{task}_data_seed{seed}.npz")
     return jnp.asarray(d["X"], jnp.float32), jnp.asarray(d["y"], jnp.float32)
 
 
-def build_fitness_fn(X, y):
+def build_loss_fn(X, y):
+    """Returns per-individual BCE loss (to MINIMIZE — matches evosax convention)."""
     def single(flat):
         W1 = flat[:2 * HIDDEN].reshape(2, HIDDEN)
         W2 = flat[2 * HIDDEN:].reshape(HIDDEN, 1)
         h = jnp.tanh(X @ W1)
         p = jax.nn.sigmoid((h @ W2)[:, 0])
         eps = 1e-7
-        bce = -(y * jnp.log(p + eps) + (1 - y) * jnp.log(1 - p + eps)).mean()
-        return -bce  # maximize
+        return -(y * jnp.log(p + eps) + (1 - y) * jnp.log(1 - p + eps)).mean()  # BCE
     return jax.jit(jax.vmap(single))
 
 
-def run_evosax(algo, fitness_fn, pop_size, n_gens, seed, log_every=20):
+def run_evosax(algo, loss_fn, pop_size, n_gens, seed, log_every=20):
     StrategyCls = _load_strategies()[algo]
     strategy = StrategyCls(population_size=pop_size, solution=jnp.zeros(N_PARAMS))
     params = strategy.default_params
@@ -67,17 +67,17 @@ def run_evosax(algo, fitness_fn, pop_size, n_gens, seed, log_every=20):
         state = strategy.init(ri2, init_pop, jnp.zeros(pop_size), params)
 
     hist_pop = np.zeros((n_gens, pop_size, N_PARAMS), dtype=np.float32)
-    hist_fit = np.zeros((n_gens, pop_size), dtype=np.float32)
+    hist_fit = np.zeros((n_gens, pop_size), dtype=np.float32)  # stored as fitness = -loss (higher better)
     t0 = time.time()
     for g in range(n_gens):
         rng, r_ask, r_tell = jax.random.split(rng, 3)
         pop, state = strategy.ask(r_ask, state, params)
-        fit = np.asarray(fitness_fn(pop))
-        state, _ = strategy.tell(r_tell, pop, jnp.array(fit), state, params)
+        loss = np.asarray(loss_fn(pop))                       # BCE, to MINIMIZE
+        state, _ = strategy.tell(r_tell, pop, jnp.array(loss), state, params)  # evosax minimizes
         hist_pop[g] = np.asarray(pop)
-        hist_fit[g] = fit
+        hist_fit[g] = -loss                                   # save as fitness (higher = better)
         if g % log_every == 0 or g == n_gens - 1:
-            print(f"  [{algo}] gen {g:3d}  best={fit.max():.3f}  mean={fit.mean():.3f}  ({time.time()-t0:.1f}s)")
+            print(f"  [{algo}] gen {g:3d}  best_fit={-loss.min():.3f}  mean_fit={-loss.mean():.3f}  ({time.time()-t0:.1f}s)")
     return hist_pop, hist_fit
 
 
@@ -88,18 +88,19 @@ def main():
     ap.add_argument("--pop", type=int, default=50)
     ap.add_argument("--gens", type=int, default=80)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--task", default="moons", help="moons|circles|blobs|xor (2-D binary)")
     ap.add_argument("--out_dir", type=Path, default=Path("runs"))
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    X, y = make_data(args.seed)
-    fitness_fn = build_fitness_fn(X, y)
+    X, y = make_data(args.seed, args.task)
+    loss_fn = build_loss_fn(X, y)
     algos = list(_load_strategies()) if args.all_algos else [args.algo]
 
     for algo in algos:
-        print(f"=== {algo} (seed {args.seed}) ===")
-        pops, fits = run_evosax(algo, fitness_fn, args.pop, args.gens, args.seed)
-        out = args.out_dir / f"moons_{algo}_seed{args.seed}.npz"
+        print(f"=== {args.task}/{algo} (seed {args.seed}) ===")
+        pops, fits = run_evosax(algo, loss_fn, args.pop, args.gens, args.seed)
+        out = args.out_dir / f"{args.task}_{algo}_seed{args.seed}.npz"
         np.savez_compressed(out, populations=pops, fitnesses=fits)
         print(f"  saved -> {out}")
 
